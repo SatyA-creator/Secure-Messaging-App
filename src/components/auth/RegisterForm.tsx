@@ -1,0 +1,175 @@
+import React, { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Shield, Mail, Lock, User, ArrowRight, Loader2, Key } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface RegisterFormProps {
+  onSwitchToLogin: () => void;
+}
+
+export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const { register, isLoading } = useAuth();
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password.length < 8) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 8 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await register(email, username, password, fullName);
+      toast({
+        title: "Account created!",
+        description: "Your encryption keys have been generated securely.",
+      });
+    } catch (error) {
+      toast({
+        title: "Registration failed",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="w-full max-w-md animate-in">
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6">
+          <Key className="w-8 h-8 text-primary" />
+        </div>
+        <h1 className="text-3xl font-display font-bold mb-2">Create Account</h1>
+        <p className="text-muted-foreground">
+          Generate your encryption keys and start messaging securely
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="John Doe"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              className="pl-11"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Username</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+            <Input
+              type="text"
+              placeholder="username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              className="pl-9"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Email</label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="pl-11"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="pl-11"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Confirm</label>
+            <Input
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            We'll generate a unique RSA-2048 key pair for your account. Your private key never leaves your device.
+          </p>
+        </div>
+
+        <Button type="submit" variant="glow" className="w-full" size="lg" disabled={isLoading}>
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              Create Account
+              <ArrowRight className="w-5 h-5" />
+            </>
+          )}
+        </Button>
+      </form>
+
+      <div className="mt-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Already have an account?{' '}
+          <button
+            onClick={onSwitchToLogin}
+            className="text-primary hover:underline font-medium"
+          >
+            Sign in
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
