@@ -1,0 +1,252 @@
+import React, { useState, useEffect, useRef } from 'react';
+import CryptoService from '../services/cryptoService';
+import websocketService from '../services/websocketService';
+import api from '../services/api';
+
+export default function GroupChat({ group, currentUser }) {
+  const [messages, setMessages] = useState([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [members, setMembers] = useState([]);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    loadGroupMessages();
+    loadGroupMembers();
+    
+    // Listen for group messages
+    websocketService.on('new_group_message', handleNewGroupMessage);
+    
+    return () => {
+      websocketService.off('new_group_message', handleNewGroupMessage);
+    };
+  }, [group.id]);
+
+  const loadGroupMessages = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/api/groups/${group.id}/messages`);
+      setMessages(response.data.reverse());
+      scrollToBottom();
+    } catch (err) {
+      console.error('Error loading messages:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadGroupMembers = async () => {
+    try {
+      const response = await api.get(`/api/groups/${group.id}/members`);
+      setMembers(response.data);
+    } catch (err) {
+      console.error('Error loading members:', err);
+    }
+  };
+
+  const handleNewGroupMessage = (data) => {
+    if (data.group_id === group.id) {
+      // Decrypt each user's session key and message
+      const encryptedSessionKeys = JSON.parse(data.encrypted_session_keys);
+      const userSessionKey = encryptedSessionKeys[currentUser.id];
+      
+      if (userSessionKey) {
+        try {
+          const decryptedMessage = decryptMessage(
+            data.encrypted_content,
+            userSessionKey
+          );
+          
+          setMessages(prev => [...prev, {
+            id: data.message_id,
+            sender_id: data.sender_id,
+            content: decryptedMessage,
+            timestamp: data.timestamp,
+            is_read: 0
+          }]);
+          scrollToBottom();
+        } catch (err) {
+          console.error('Decryption error:', err);
+        }
+      }
+    }
+  };
+
+  const decryptMessage = (encryptedContent, encryptedSessionKey) => {
+    const privateKey = localStorage.getItem('privatekey');
+    
+    try {
+      // Decrypt session key with private key
+      const sessionKey = CryptoService.boxDecrypt(
+        { encrypted: encryptedContent, nonce: null },
+        null,
+        privateKey
+      );
+      
+      // Decrypt message with session key
+      const message = CryptoService.decryptMessage(encryptedContent, sessionKey);
+      return message;
+    } catch (err) {
+      console.error('Decryption failed:', err);
+      return 'Unable to decrypt message';
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    try {
+      // Get all members' public keys
+      const memberPublicKeys = {};
+      for (const member of members) {
+        if (member.id !== currentUser.id) {
+          memberPublicKeys[member.id] = member.public_key;
+        }
+      }
+
+      // Generate session key
+      const sessionKey = CryptoService.generateNonce().toString();
+
+      // Encrypt message
+      const encryptedContent = CryptoService.encryptMessage(
+        inputMessage,
+        sessionKey
+      );
+
+      // Encrypt session key for each member
+      const encryptedSessionKeys = {};
+      const privateKey = localStorage.getItem('privatekey');
+      
+      for (const [memberId, publicKey] of Object.entries(memberPublicKeys)) {
+        encryptedSessionKeys[memberId] = CryptoService.boxEncrypt(
+          sessionKey,
+          publicKey,
+          privateKey
+        ).encrypted;
+      }
+
+      // Send via WebSocket
+      websocketService.sendGroupMessage(
+        group.id,
+        encryptedContent.encrypted,
+        encryptedSessionKeys
+      );
+
+      // Add to local messages
+      setMessages(prev => [...prev, {
+        id: 'temp-' + Date.now(),
+        sender_id: currentUser.id,
+        content: inputMessage,
+        timestamp: new Date().toISOString(),
+        status: 'sending'
+      }]);
+
+      setInputMessage('');
+      scrollToBottom();
+    } catch (err) {
+      console.error('Error sending message:', err);
+      alert('Failed to send message');
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-white rounded-lg shadow-lg">
+      {/* Header */}
+      <div className="bg-blue-600 text-white p-4 rounded-t-lg">
+        <h2 className="text-xl font-bold">{group.name}</h2>
+        <p className="text-sm opacity-75">{members.length} members</p>
+      </div>
+
+      {/* Members Sidebar */}
+      <div className="flex flex-1">
+        <div className="flex-1 flex flex-col">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+            {loading ? (
+              <div className="text-center text-gray-500">Loading messages...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-center text-gray-500">No messages yet</div>
+            ) : (
+              messages.map(msg => {
+                const sender = members.find(m => m.id === msg.sender_id);
+                return (
+                  <div
+                    key={msg.id}
+                    className={`mb-4 flex ${
+                      msg.sender_id === currentUser.id ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <div
+                      className={`max-w-xs px-4 py-2 rounded-lg ${
+                        msg.sender_id === currentUser.id
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-900 border border-gray-300'
+                      }`}
+                    >
+                      {msg.sender_id !== currentUser.id && (
+                        <p className="text-xs font-semibold opacity-75 mb-1">
+                          {sender?.username}
+                        </p>
+                      )}
+                      <p>{msg.content}</p>
+                      <p className="text-xs opacity-70 mt-1">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="bg-white border-t p-4 flex gap-2">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Type a message..."
+              className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleSendMessage}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+
+        {/* Members List */}
+        <div className="w-48 border-l p-4 bg-gray-50 overflow-y-auto">
+          <h3 className="font-bold mb-4">Members ({members.length})</h3>
+          <div className="space-y-2">
+            {members.map(member => (
+              <div key={member.id} className="text-sm p-2 rounded hover:bg-gray-200">
+                {member.avatar_url && (
+                  <img
+                    src={member.avatar_url}
+                    alt={member.username}
+                    className="w-6 h-6 rounded-full inline mr-2"
+                  />
+                )}
+                {member.username}
+                {member.id === group.creator_id && (
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
+                    Admin
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

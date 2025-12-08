@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import json
 from typing import Dict, List
+from datetime import datetime
 from app.config import settings
 from app.database import init_db
 from app.api import router as api_router
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -86,13 +86,22 @@ async def health_check():
     return {"status": "healthy", "environment": settings.ENVIRONMENT}
 
 # WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str = "demo-token"):
-    # For demo purposes, extract user_id from token
-    user_id = token.replace("demo-token-", "") if token.startswith("demo-token-") else "anonymous"
-    
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    """
+    WebSocket endpoint for real-time messaging
+    user_id: The authenticated user's ID (should validate with JWT in production)
+    """
     await manager.connect(websocket, user_id)
+    
     try:
+        # Send connection confirmation
+        await websocket.send_json({
+            "type": "connection_established",
+            "user_id": user_id,
+            "timestamp": json.dumps(datetime.now(), default=str)
+        })
+        
         while True:
             data = await websocket.receive_text()
             try:
@@ -100,19 +109,59 @@ async def websocket_endpoint(websocket: WebSocket, token: str = "demo-token"):
                 message_type = message_data.get("type")
                 payload = message_data.get("payload", {})
                 
+                logger.info(f"WebSocket message from {user_id}: {message_type}")
+                
                 if message_type == "new_message":
-                    # Handle new message
+                    # Handle new message and forward to recipient
                     recipient_id = payload.get("recipient_id")
                     if recipient_id:
-                        await manager.send_personal_message(data, recipient_id)
+                        await manager.send_personal_message(
+                            json.dumps({
+                                "type": "new_message",
+                                "sender_id": user_id,
+                                "payload": payload
+                            }),
+                            recipient_id
+                        )
+                        logger.info(f"Message forwarded from {user_id} to {recipient_id}")
+                    
+                elif message_type == "typing":
+                    # Handle typing indicator
+                    recipient_id = payload.get("recipient_id")
+                    if recipient_id:
+                        await manager.send_personal_message(
+                            json.dumps({
+                                "type": "typing",
+                                "sender_id": user_id,
+                                "is_typing": payload.get("is_typing", False)
+                            }),
+                            recipient_id
+                        )
+                
                 elif message_type == "contact_added":
-                    # Handle contact added notification
-                    logger.info(f"Contact added by user {user_id}: {payload}")
+                    # Notify the other user about the new contact
+                    contact_id = payload.get("contact_id")
+                    if contact_id:
+                        await manager.send_personal_message(
+                            json.dumps({
+                                "type": "contact_added",
+                                "user_id": user_id,
+                                "payload": payload
+                            }),
+                            contact_id
+                        )
+                        logger.info(f"Contact added notification sent from {user_id} to {contact_id}")
                     
             except json.JSONDecodeError:
-                logger.error("Invalid JSON received from WebSocket")
+                logger.error(f"Invalid JSON received from WebSocket (user: {user_id})")
+            except Exception as e:
+                logger.error(f"Error processing WebSocket message: {str(e)}")
                 
     except WebSocketDisconnect:
+        manager.disconnect(user_id)
+        logger.info(f"User {user_id} disconnected from WebSocket")
+    except Exception as e:
+        logger.error(f"WebSocket error for user {user_id}: {str(e)}")
         manager.disconnect(user_id)
 
 logger.info(f"FastAPI app initialized in {settings.ENVIRONMENT} mode")

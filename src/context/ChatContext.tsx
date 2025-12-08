@@ -130,10 +130,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (user) {
       wsRef.current = WebSocketService.getInstance();
       
-      // For demo purposes, we'll use a dummy token
-      const dummyToken = 'demo-token-' + user.id;
-      
-      wsRef.current.connect(dummyToken)
+      // Connect using the user ID
+      wsRef.current.connect(user.id)
         .then(() => {
           setIsConnected(true);
           console.log('Connected to WebSocket');

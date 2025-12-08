@@ -22,10 +22,10 @@ class WebSocketService {
     return WebSocketService.instance;
   }
 
-  public connect(token: string): Promise<void> {
+  public connect(userId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `ws://localhost:8000/ws?token=${token}`;
+        const wsUrl = `ws://127.0.0.1:8001/ws/${userId}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
@@ -45,7 +45,7 @@ class WebSocketService {
 
         this.ws.onclose = () => {
           console.log('WebSocket disconnected');
-          this.handleReconnect(token);
+          this.handleReconnect(userId);
         };
 
         this.ws.onerror = (error) => {
@@ -64,13 +64,13 @@ class WebSocketService {
     handlers.forEach(handler => handler(payload));
   }
 
-  private handleReconnect(token: string) {
+  private handleReconnect(userId: string) {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       
       setTimeout(() => {
-        this.connect(token).catch(() => {
+        this.connect(userId).catch(() => {
           console.error('Reconnection failed');
         });
       }, this.reconnectDelay * this.reconnectAttempts);
