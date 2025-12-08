@@ -100,9 +100,22 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       </div>
 
       <div className="mt-8 p-4 rounded-lg bg-secondary/50 border border-border">
-        <p className="text-xs text-muted-foreground text-center">
-          <span className="text-primary font-medium">Demo credentials:</span> alice@secure.chat / demo123
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-center text-primary">Demo Accounts (Fallback):</p>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="flex justify-between">
+              <span>alice@secure.chat</span>
+              <span>demo123</span>
+            </div>
+            <div className="flex justify-between">
+              <span>bob@secure.chat</span>
+              <span>demo123</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Create your own account or use demo accounts if database is unavailable
+          </p>
+        </div>
       </div>
     </div>
   );

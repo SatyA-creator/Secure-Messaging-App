@@ -33,7 +33,7 @@ export function ChatWindow() {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-primary/10 mb-6">
             <Shield className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-display font-bold mb-2">SecureChat</h2>
+          <h2 className="text-2xl font-display font-bold mb-2">QuantChat</h2>
           <p className="text-muted-foreground mb-4">
             Select a conversation to start messaging securely
           </p>

@@ -46,10 +46,11 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS if settings.ENVIRONMENT == "production" else ["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include API routes
@@ -65,11 +66,6 @@ async def startup():
 async def shutdown():
     logger.info("Application shutting down")
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "environment": settings.ENVIRONMENT}
-
 # Root endpoint
 @app.get("/")
 async def root():
@@ -78,6 +74,16 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs"
     }
+
+# CORS preflight handler for debugging
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"message": "OK"}
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "environment": settings.ENVIRONMENT}
 
 # WebSocket endpoint
 @app.websocket("/ws")
