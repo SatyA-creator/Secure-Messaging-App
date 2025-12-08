@@ -20,7 +20,7 @@ export default function Auth() {
               <Shield className="w-7 h-7 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-bold">SecureChat</h1>
+              <h1 className="text-2xl font-display font-bold">QuantChat</h1>
               <p className="text-sm text-muted-foreground">End-to-End Encrypted</p>
             </div>
           </div>

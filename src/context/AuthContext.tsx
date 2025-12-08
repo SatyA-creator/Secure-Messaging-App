@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { User, AuthState } from '@/types/messaging';
 
 interface AuthContextType extends AuthState {
@@ -9,7 +9,109 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Demo users for showcase
+// API Configuration
+const API_BASE_URL = 'http://127.0.0.1:8001/api/v1';
+
+// API service functions
+const apiService = {
+  register: async (userData: { email: string; username: string; password: string; full_name: string }) => {
+    console.log('Sending registration request to:', `${API_BASE_URL}/auth/register`);
+    console.log('Request data:', { ...userData, password: '[REDACTED]' });
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+      
+      console.log('Registration response status:', response.status);
+      console.log('Registration response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Registration error response:', errorText);
+        
+        let errorDetail = 'Registration failed';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorDetail = errorJson.detail || errorDetail;
+        } catch {
+          errorDetail = errorText || errorDetail;
+        }
+        
+        throw new Error(errorDetail);
+      }
+      
+      const responseData = await response.json();
+      console.log('Registration successful, response data:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('Registration fetch error:', error);
+      throw error;
+    }
+  },
+  
+  login: async (email: string, password: string) => {
+    console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
+    console.log('Login email:', email);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      console.log('Login response status:', response.status);
+      console.log('Login response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Login error response:', errorText);
+        
+        let errorDetail = 'Login failed';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorDetail = errorJson.detail || errorDetail;
+        } catch {
+          errorDetail = errorText || errorDetail;
+        }
+        
+        throw new Error(errorDetail);
+      }
+      
+      const responseData = await response.json();
+      console.log('Login successful, response data:', { ...responseData, access_token: '[REDACTED]' });
+      return responseData;
+    } catch (error) {
+      console.error('Login fetch error:', error);
+      throw error;
+    }
+  },
+  
+  getProfile: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to get profile');
+    }
+    
+    return response.json();
+  },
+};
+
+// Demo users for testing (will be removed once API is fully integrated)
 const demoUsers: Record<string, { user: User; password: string }> = {
   'alice@secure.chat': {
     password: 'demo123',
@@ -37,58 +139,169 @@ const demoUsers: Record<string, { user: User; password: string }> = {
   },
 };
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+// Get stored auth token
+const getStoredToken = (): string | null => {
+  return localStorage.getItem('authToken');
+};
+
+// Store auth token
+const storeToken = (token: string): void => {
+  localStorage.setItem('authToken', token);
+};
+
+// Remove auth token
+const removeToken = (): void => {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('user');
+};
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     isAuthenticated: false,
-    isLoading: false,
+    isLoading: true, // Start with loading to check existing auth
   });
+
+  // Check for existing authentication on mount
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const token = getStoredToken();
+      if (token) {
+        try {
+          console.log('Found stored token, verifying...');
+          const userProfile = await apiService.getProfile(token);
+          
+          const user: User = {
+            id: userProfile.id,
+            username: userProfile.username,
+            email: userProfile.email,
+            fullName: userProfile.full_name,
+            publicKey: userProfile.public_key || 'api-public-key',
+            isOnline: true,
+            lastSeen: new Date(),
+          };
+          
+          setState({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          
+          console.log('Auth restored from token');
+        } catch (error) {
+          console.log('Token verification failed:', error);
+          removeToken();
+          setState(prev => ({ ...prev, isLoading: false }));
+        }
+      } else {
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
+    };
+
+    initializeAuth();
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setState(prev => ({ ...prev, isLoading: true }));
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const demoUser = demoUsers[email.toLowerCase()];
-    if (demoUser && demoUser.password === password) {
+    try {
+      console.log('Attempting login with API:', { email });
+      
+      // Try API login first
+      const response = await apiService.login(email, password);
+      
+      console.log('API login successful:', response);
+      
+      // Store token
+      storeToken(response.access_token);
+      
+      // Create user object from API response
+      const user: User = {
+        id: response.user.id,
+        username: response.user.username,
+        email: response.user.email,
+        fullName: response.user.full_name,
+        publicKey: response.user.public_key || 'api-public-key',
+        isOnline: true,
+        lastSeen: new Date(),
+      };
+      
       setState({
-        user: demoUser.user,
+        user,
         isAuthenticated: true,
         isLoading: false,
-        privateKey: 'demo-private-key',
+        privateKey: 'api-private-key',
       });
-    } else {
-      setState(prev => ({ ...prev, isLoading: false }));
-      throw new Error('Invalid credentials');
+      
+    } catch (apiError) {
+      console.log('API login failed, trying demo users:', apiError);
+      
+      // Fallback to demo users for development
+      const normalizedEmail = email.toLowerCase();
+      const demoUser = demoUsers[normalizedEmail];
+      
+      if (demoUser && demoUser.password === password) {
+        console.log('Demo user login successful');
+        setState({
+          user: demoUser.user,
+          isAuthenticated: true,
+          isLoading: false,
+          privateKey: 'demo-private-key',
+        });
+      } else {
+        setState(prev => ({ ...prev, isLoading: false }));
+        throw new Error('Invalid credentials');
+      }
     }
   }, []);
 
   const register = useCallback(async (email: string, username: string, password: string, fullName: string) => {
     setState(prev => ({ ...prev, isLoading: true }));
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser: User = {
-      id: crypto.randomUUID(),
-      username,
-      email,
-      fullName,
-      publicKey: 'generated-public-key',
-      isOnline: true,
-      lastSeen: new Date(),
-    };
-    
-    setState({
-      user: newUser,
-      isAuthenticated: true,
-      isLoading: false,
-      privateKey: 'generated-private-key',
-    });
+    try {
+      console.log('Attempting registration with API:', { email, username, fullName });
+      
+      // Call API to register user
+      const response = await apiService.register({
+        email,
+        username,
+        password,
+        full_name: fullName,
+      });
+      
+      console.log('API registration successful:', response);
+      
+      // Create user object from API response
+      const user: User = {
+        id: response.id,
+        username: response.username,
+        email: response.email,
+        fullName: response.full_name,
+        publicKey: 'api-generated-public-key',
+        isOnline: true,
+        lastSeen: new Date(),
+      };
+      
+      setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        privateKey: 'api-generated-private-key',
+      });
+      
+    } catch (error) {
+      console.error('Registration failed:', error);
+      setState(prev => ({ ...prev, isLoading: false }));
+      throw error;
+    }
   }, []);
 
   const logout = useCallback(() => {
+    console.log('Logging out user');
+    
+    // Clear stored tokens and user data
+    removeToken();
+    
     setState({
       user: null,
       isAuthenticated: false,

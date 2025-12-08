@@ -17,16 +17,12 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     username: str
-    full_name: Optional[str]
+    full_name: Optional[str] = None
     is_active: bool
-    
-    class Config:
-        from_attributes = True
-    avatar_url: Optional[str]
-    bio: Optional[str]
-    is_verified: bool
-    public_key: str
-    created_at: datetime
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    is_verified: bool = False
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
