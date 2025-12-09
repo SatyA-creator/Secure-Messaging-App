@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 import { Contact, Message, Conversation, MessageStatus } from '@/types/messaging';
 import { useAuth } from './AuthContext';
 import WebSocketService from '@/lib/websocket';
+import { ENV } from '@/config/env';
 
 interface ChatContextType {
   contacts: Contact[];
@@ -241,49 +242,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const addContact = useCallback(async (email: string, displayName?: string) => {
-    try {
-      // For demo purposes, simulate adding a contact
-      const newContact: Contact = {
-        id: crypto.randomUUID(),
-        username: email.split('@')[0],
-        email: email,
-        fullName: displayName || email.split('@')[0],
-        publicKey: 'demo-key-' + crypto.randomUUID(),
-        isOnline: false,
-        lastSeen: new Date(),
-        unreadCount: 0,
-      };
+ const addContact = useCallback(async (email: string, displayName?: string) => {
+  if (!user) throw new Error('User not authenticated');
+  
+  try {
+    // ✅ Send invitation via API instead of directly adding
+    const response = await fetch(`${ENV.API_URL}/invitations/send`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` 
+      },
+      body: JSON.stringify({ 
+        inviter_email: user.email,  // ✅ Use inviter_email instead of inviter_id
+        invitee_email: email 
+      })
+    });
 
-      setContacts(prev => [...prev, newContact]);
-
-      // Initialize empty conversation for new contact
-      setConversations(prev => ({
-        ...prev,
-        [newContact.id]: {
-          contactId: newContact.id,
-          messages: [],
-          isLoading: false,
-          hasMore: false,
-        },
-      }));
-
-      // TODO: Send to backend API
-      // const response = await fetch('/api/v1/contacts/add', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email, display_name: displayName })
-      // });
-
-      if (wsRef.current && wsRef.current.isConnected()) {
-        wsRef.current.send('contact_added', { contact: newContact });
-      }
-
-    } catch (error) {
-      console.error('Failed to add contact:', error);
-      throw new Error('Failed to add contact. Please try again.');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to send invitation');
     }
-  }, []);
+
+    const result = await response.json();
+    console.log('✅ Invitation sent:', result);
+
+    // Don't add to contacts yet - wait for acceptance
+    return result;
+
+  } catch (error) {
+    console.error('Failed to send invitation:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to send invitation');
+  }
+}, [user]);
+
 
   return (
     <ChatContext.Provider
