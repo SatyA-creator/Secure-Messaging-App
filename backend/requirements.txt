@@ -23,6 +23,7 @@ redis==5.2.1
 # Data Validation
 pydantic==2.10.3
 pydantic-settings==2.7.0
+email-validator
 
 # Environment Variables
 python-dotenv==1.0.1
