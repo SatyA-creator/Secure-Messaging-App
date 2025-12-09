@@ -1,7 +1,8 @@
-# 🚀 Vercel + Supabase Deployment Guide
+# 🚀 Render + Vercel + Supabase Deployment Guide
 
 ## ✅ Prerequisites
 - GitHub account
+- Render account (sign up at render.com - FREE)
 - Vercel account (sign up at vercel.com - FREE)
 - Supabase account (sign up at supabase.com - FREE)
 
@@ -113,22 +114,24 @@ If you get errors, make sure you're logged in to GitHub and have initialized git
 
 ---
 
-## 🔧 PART 3: Deploy Backend to Vercel
+## 🔧 PART 3: Deploy Backend to Render
 
-### Step 3.1: Create Backend Deployment
-1. Go to **https://vercel.com** → Sign in with GitHub
-2. Click **"Add New..."** → **"Project"**
-3. Find and **Import** your repository
-4. **IMPORTANT**: Click **"Edit"** next to Root Directory
-5. **Type**: `backend` → Click Save
-6. Configure:
-   - **Framework Preset**: Other
-   - **Build Command**: (leave empty)
-   - **Output Directory**: (leave empty)
-   - **Install Command**: `pip install -r requirements.txt`
+### Step 3.1: Create Web Service
+1. Go to **https://render.com** → Sign in with GitHub
+2. Click **"New +"** → **"Web Service"**
+3. Click **"Connect account"** if first time, then find and select your repository
+4. Configure the service:
+   - **Name**: `messaging-backend` (or any name you like)
+   - **Region**: Select closest to you
+   - **Branch**: `main`
+   - **Root Directory**: `backend`
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Instance Type**: `Free`
 
-### Step 3.2: Add Backend Environment Variables
-Click **"Environment Variables"** and add these **one by one**:
+### Step 3.2: Add Environment Variables
+Scroll down to **Environment Variables** section and click **"Add Environment Variable"**. Add these **one by one**:
 
 | Variable Name | Value |
 |--------------|-------|
@@ -144,15 +147,16 @@ Click **"Environment Variables"** and add these **one by one**:
 | `SMTP_PASSWORD` | `bsdk ivzr idqc pxvo` |
 | `SMTP_FROM_EMAIL` | `priyamsatya08@gmail.com` |
 | `CORS_ORIGINS` | `["*"]` |
-| `SERVER_HOST` | `0.0.0.0` |
-| `SERVER_PORT` | `8001` |
+| `PYTHON_VERSION` | `3.11.0` |
 
 ### Step 3.3: Deploy Backend
-1. Click **"Deploy"** button
-2. Wait 2-3 minutes ⏱️
-3. Once done, you'll see 🎉 **Congratulations!**
-4. **COPY YOUR BACKEND URL** (e.g., `https://messaging-backend-xxx.vercel.app`)
+1. Click **"Create Web Service"** button at the bottom
+2. Wait 3-5 minutes ⏱️ (Render will build and deploy)
+3. Once done, you'll see **"Live"** status with a green checkmark ✅
+4. **COPY YOUR BACKEND URL** at the top (e.g., `https://messaging-backend-xxx.onrender.com`)
 5. **Save it** - you'll need it next! 📝
+
+**Note**: Free tier may spin down after 15 minutes of inactivity. First request after inactivity may take 30-60 seconds.
 
 ---
 
@@ -188,22 +192,21 @@ Click **"Environment Variables"** and add:
 ## 🔄 PART 5: Update Backend CORS
 
 ### Step 5.1: Update CORS Settings
-1. Go to Vercel → Select your **BACKEND** project
-2. Click **"Settings"** tab
-3. Click **"Environment Variables"**
-4. Find `CORS_ORIGINS` → Click **"Edit"**
-5. Change value to: `["https://your-frontend.vercel.app"]`
+1. Go to Render → Select your **backend** web service
+2. Click **"Environment"** in left sidebar
+3. Find `CORS_ORIGINS` → Click **"Edit"**
+4. Change value to: `["https://your-frontend.vercel.app"]`
    *(replace with YOUR frontend URL)*
-6. Click **"Save"**
-7. Also add new variable:
-   - **Name**: `FRONTEND_URL`
+5. Click **"Save Changes"**
+6. Also add new variable (click **"Add Environment Variable"**):
+   - **Key**: `FRONTEND_URL`
    - **Value**: `https://your-frontend.vercel.app` *(your frontend URL)*
+7. Click **"Save Changes"**
 
 ### Step 5.2: Redeploy Backend
-1. Go to **"Deployments"** tab
-2. Click **"..."** (3 dots) on the latest deployment
-3. Click **"Redeploy"**
-4. Wait for redeploy to finish ⏱️
+1. After saving environment variables, Render will automatically trigger a redeploy
+2. Wait for the deployment to finish (you'll see "Live" status) ⏱️
+3. If it doesn't auto-deploy, click **"Manual Deploy"** → **"Deploy latest commit"**
 
 ---
 
@@ -224,40 +227,46 @@ Click **"Environment Variables"** and add:
 ### ❌ "Failed to fetch" errors:
 - Check browser console (F12)
 - Verify VITE_API_URL in frontend settings
-- Make sure backend is deployed and running
+- Make sure backend is deployed and running on Render
+- **Render free tier**: Backend may be sleeping - wait 30-60 seconds for first request
 
 ### ❌ CORS errors:
 - Verify CORS_ORIGINS includes your frontend URL
-- Redeploy backend after changing env vars
+- Check Render environment variables
+- Wait for auto-redeploy after changing env vars
 
 ### ❌ Database connection errors:
-- Check DATABASE_URL in backend settings
-- Verify password has no special characters or is URL-encoded
+- Check DATABASE_URL in Render environment settings
+- Verify Supabase connection string is correct
+- Make sure you're using port 6543 (Supabase pooler)
 
 ### ❌ Email not sending:
-- Check SMTP credentials in backend env vars
+- Check SMTP credentials in Render env vars
 - Verify Gmail "App Password" is correct
 
+### ❌ Backend not responding:
+- Render free tier spins down after 15 min inactivity
+- First request takes 30-60 seconds to wake up
+- Check Render logs for errors
+
 ### 📊 View Logs:
-- **Backend logs**: Vercel → Backend Project → Deployments → Click deployment → Function Logs
+- **Backend logs**: Render → Your Web Service → **"Logs"** tab (live streaming)
 - **Frontend logs**: Browser console (F12)
+- **Render events**: Render → Your Web Service → **"Events"** tab
 
 ---
 
 ## 🎉 SUCCESS! Your App is Live!
 
 - **Frontend**: https://your-app.vercel.app
-- **Backend API**: https://your-backend.vercel.app/api/v1
+- **Backend API**: https://your-backend.onrender.com/api/v1
 - **Database**: Managed by Supabase
 - **Email**: Sent via Gmail SMTP
 
 ## 📝 Important Notes:
 
-⚠️ **WebSocket Limitations**:
-Vercel serverless functions have 10-second timeout. WebSockets may not work in production. Consider:
-- Using Supabase Realtime for real-time features
-- Deploying WebSocket server separately (Railway/Render)
-- Using HTTP polling as fallback
+✅ **WebSocket Support**:
+Render supports WebSockets! Your real-time messaging should work in production on Render, unlike Vercel serverless.
 
 🔒 **Security**:
 - Change JWT_SECRET_KEY in production
@@ -266,9 +275,15 @@ Vercel serverless functions have 10-second timeout. WebSockets may not work in p
 - Update CORS to specific domains
 
 💰 **Free Tier Limits**:
-- Vercel: 100GB bandwidth/month
-- Supabase: 500MB database, 2GB bandwidth
+- **Render**: 750 hours/month, spins down after 15 min inactivity
+- **Vercel**: 100GB bandwidth/month
+- **Supabase**: 500MB database, 2GB bandwidth
 - Monitor usage in dashboards
+
+⚠️ **Render Free Tier Behavior**:
+- Backend sleeps after 15 minutes of no activity
+- Wakes up on first request (takes 30-60 seconds)
+- Consider upgrading to paid tier ($7/month) for always-on service
 
 ---
 
