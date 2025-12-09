@@ -55,37 +55,38 @@ export function AddContactDialog({ onAddContact, children }: AddContactDialogPro
     }
   };
 
-  const handleAddContact = async () => {
-    if (!email.trim()) {
-      toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address.",
-        variant: "destructive",
-      });
-      return;
-    }
+const handleAddContact = async () => {
+  if (!email.trim()) {
+    toast({
+      title: "Invalid email",
+      description: "Please enter a valid email address.",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    setIsLoading(true);
-    try {
-      await onAddContact(email, displayName || undefined);
-      setEmail('');
-      setDisplayName('');
-      setSearchResults([]);
-      setOpen(false);
-      toast({
-        title: "Contact added",
-        description: `${displayName || email} has been added to your contacts.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Failed to add contact",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  setIsLoading(true);
+  try {
+    await onAddContact(email, displayName || undefined);
+    setEmail('');
+    setDisplayName('');
+    setSearchResults([]);
+    setOpen(false);
+    toast({
+      title: "Invitation sent! ✉️",
+      description: `An invitation email has been sent to ${email}. They'll be added to your contacts after accepting.`,
+    });
+  } catch (error) {
+    toast({
+      title: "Failed to send invitation",
+      description: error instanceof Error ? error.message : "Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const resetForm = () => {
     setEmail('');

@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { User, AuthState } from '@/types/messaging';
+import { ENV } from '@/config/env';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string, fullName: string) => Promise<void>;
+  register: (email: string, username: string, password: string, fullName: string) => Promise<{ user: User; token: string } | undefined>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // API Configuration
-const API_BASE_URL = 'http://127.0.0.1:8001/api/v1';
+const API_BASE_URL = ENV.API_URL;
 
 // API service functions
 const apiService = {
@@ -255,46 +256,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, username: string, password: string, fullName: string) => {
-    setState(prev => ({ ...prev, isLoading: true }));
+const register = useCallback(async (email: string, username: string, password: string, fullName: string) => {
+  setState(prev => ({ ...prev, isLoading: true }));
+  
+  try {
+    console.log('Attempting registration with API:', { email, username, fullName });
     
-    try {
-      console.log('Attempting registration with API:', { email, username, fullName });
-      
-      // Call API to register user
-      const response = await apiService.register({
-        email,
-        username,
-        password,
-        full_name: fullName,
-      });
-      
-      console.log('API registration successful:', response);
-      
-      // Create user object from API response
-      const user: User = {
-        id: response.id,
-        username: response.username,
-        email: response.email,
-        fullName: response.full_name,
-        publicKey: 'api-generated-public-key',
-        isOnline: true,
-        lastSeen: new Date(),
-      };
-      
-      setState({
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-        privateKey: 'api-generated-private-key',
-      });
-      
-    } catch (error) {
-      console.error('Registration failed:', error);
-      setState(prev => ({ ...prev, isLoading: false }));
-      throw error;
+    // Call API to register user
+    const response = await apiService.register({
+      email,
+      username,
+      password,
+      full_name: fullName,
+    });
+    
+    console.log('API registration successful:', response);
+    
+    // ✅ Store the access token
+    if (response.access_token) {
+      storeToken(response.access_token);
     }
-  }, []);
+    
+    // ✅ Create user object from API response (now has nested user object)
+    const userData = response.user || response;
+    const user: User = {
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      fullName: userData.full_name,
+      publicKey: userData.public_key || 'api-generated-public-key',
+      isOnline: true,
+      lastSeen: new Date(),
+    };
+    
+    setState({
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+      privateKey: 'api-generated-private-key',
+    });
+    
+    // ✅ Return full response including token and user
+    return {
+      user: user,
+      token: response.access_token,
+      ...response
+    };
+    
+  } catch (error) {
+    console.error('Registration failed:', error);
+    setState(prev => ({ ...prev, isLoading: false }));
+    throw error;
+  }
+}, []);
+
+
 
   const logout = useCallback(() => {
     console.log('Logging out user');

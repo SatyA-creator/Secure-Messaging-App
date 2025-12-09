@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     bio: Optional[str] = None
     is_verified: bool = False
     created_at: Optional[datetime] = None
+    public_key: Optional[str] = None
 
     class Config:
         from_attributes = True
