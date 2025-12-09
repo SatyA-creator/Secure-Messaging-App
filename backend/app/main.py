@@ -85,6 +85,11 @@ async def options_handler(path: str):
 async def health_check():
     return {"status": "healthy", "environment": settings.ENVIRONMENT}
 
+# Favicon endpoint to prevent 405 errors
+@app.get("/favicon.ico")
+async def favicon():
+    return {"message": "No favicon"}
+
 # WebSocket endpoint
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
