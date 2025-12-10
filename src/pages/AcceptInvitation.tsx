@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { ENV } from '@/config/env';
 
 export function AcceptInvitation() {
   const { token } = useParams<{ token: string }>();
@@ -20,7 +21,7 @@ export function AcceptInvitation() {
 
   const verifyInvitation = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/invitations/verify/${token}`);
+      const response = await fetch(`${ENV.API_URL}/invitations/verify/${token}`);
       
       if (!response.ok) {
         const error = await response.json();
@@ -49,7 +50,7 @@ export function AcceptInvitation() {
     // Accept invitation
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/invitations/accept', {
+      const response = await fetch(`${ENV.API_URL}/invitations/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
