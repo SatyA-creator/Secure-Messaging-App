@@ -41,7 +41,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "http://127.0.0.1:8080",
         "http://127.0.0.1:8081",
-        "https://secure-messaging-app-omega.vercel.app",
+        "https://secure-messaging-kj0r4pc1c-satya-priyams-projects.vercel.app",
     ]
     
     # Security
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
 
     # 🔹 Frontend & WebSocket URLs
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://secure-messaging-app-omega.vercel.app")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://secure-messaging-kj0r4pc1c-satya-priyams-projects.vercel.app")
     WEBSOCKET_URL: str = os.getenv("WEBSOCKET_URL", "ws://localhost:8000")
 
     # Logging
