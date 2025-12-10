@@ -1,6 +1,6 @@
 // API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001';
-export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8001';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app';
+export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'wss://secure-messaging-app-production.up.railway.app';
 
 export const API_ENDPOINTS = {
   AUTH: {
