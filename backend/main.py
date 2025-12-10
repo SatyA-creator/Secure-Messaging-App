@@ -5,7 +5,7 @@ from app.config import settings
 if __name__ == "__main__":
     # Railway/Render uses PORT environment variable
     port = int(os.getenv("PORT", settings.SERVER_PORT))
-    host = os.getenv("HOST", settings.SERVER_HOST)
+    host = "0.0.0.0"
     
     print("🚀 Starting Secure Messaging API...")
     print(f"📍 Server will run on: http://{host}:{port}")
