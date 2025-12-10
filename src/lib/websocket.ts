@@ -25,7 +25,9 @@ class WebSocketService {
   public connect(userId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8001'}/ws/${userId}`;
+        // Remove trailing slash from WS_URL if present
+        const baseUrl = (import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8001').replace(/\/$/, '');
+        const wsUrl = `${baseUrl}/ws/${userId}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
