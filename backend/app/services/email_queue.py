@@ -70,7 +70,8 @@ class EmailQueue:
                     'Content-Type': 'application/json'
                 },
                 json={
-                    'from': f'Secure Messaging <onboarding@resend.dev>',
+                    # 'from': f'Secure Messaging <onboarding@resend.dev>',
+                    'from': 'Secure Messaging App <priyamsatya08@gmail.com>',
                     'to': [invitee_email],
                     'subject': f'{inviter_name} invited you to Secure Messaging App',
                     'html': f"""
