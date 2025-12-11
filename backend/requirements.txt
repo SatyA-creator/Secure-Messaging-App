@@ -28,6 +28,11 @@ email-validator
 # Environment Variables
 python-dotenv==1.0.1
 
+# HTTP Requests
+requests==2.32.3
+requests
+
+
 # CORS
 fastapi-cors==0.0.6
 
