@@ -100,8 +100,8 @@ class EmailQueue:
                 try:
                     logger.info(f"🔄 Attempting to send email to {invitee_email} (Attempt {retry_count + 1}/{max_retries})")
                     
-                    with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10) as server:
-                        server.starttls()
+                    # Try SSL connection on port 465 (better for Railway)
+                    with smtplib.SMTP_SSL(settings.SMTP_SERVER, 465, timeout=10) as server:
                         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
                         server.sendmail(settings.SMTP_FROM_EMAIL, invitee_email, msg.as_string())
                     
