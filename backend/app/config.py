@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
 
     # 🔹 Frontend & WebSocket URLs
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://secure-messaging-app-omega.vercel.app")
