@@ -57,61 +57,68 @@ class EmailQueue:
         invitation_link: str,
         inviter_name: str
     ) -> bool:
-        """Send invitation email via Resend API"""
+        """Send invitation email via Gmail SMTP SSL"""
         try:
-            import requests
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = f"{inviter_name} invited you to Secure Messaging App"
+            msg["From"] = settings.SMTP_FROM_EMAIL
+            msg["To"] = invitee_email
             
-            logger.info(f"🔄 Sending email to {invitee_email} via Resend")
+            html = f"""
+            <html>
+              <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
+                  <h2 style="color: #333;">You've been invited!</h2>
+                  <p style="font-size: 16px; color: #666;">
+                    <strong>{inviter_name}</strong> wants to connect with you on Secure Messaging App.
+                  </p>
+                  <p style="margin: 30px 0;">
+                    <a href="{invitation_link}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px;">
+                      Accept Invitation
+                    </a>
+                  </p>
+                  <p style="font-size: 14px; color: #999;">
+                    Or copy this link: <br>
+                    <span style="color: #4CAF50; word-break: break-all;">{invitation_link}</span>
+                  </p>
+                  <p style="font-size: 12px; color: #999; margin-top: 30px;">
+                    This invitation expires in 7 days.
+                  </p>
+                </div>
+              </body>
+            </html>
+            """
             
-            response = requests.post(
-                'https://api.resend.com/emails',
-                headers={
-                    'Authorization': f'Bearer {settings.RESEND_API_KEY}',
-                    'Content-Type': 'application/json'
-                },
-                json={
-                    # 'from': f'Secure Messaging <onboarding@resend.dev>',
-                    'from': 'Secure Messaging App <priyamsatya08@gmail.com>',
-                    'to': [invitee_email],
-                    'subject': f'{inviter_name} invited you to Secure Messaging App',
-                    'html': f"""
-                    <html>
-                      <body style="font-family: Arial, sans-serif; padding: 20px;">
-                        <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
-                          <h2 style="color: #333;">You've been invited!</h2>
-                          <p style="font-size: 16px; color: #666;">
-                            <strong>{inviter_name}</strong> wants to connect with you on Secure Messaging App.
-                          </p>
-                          <p style="margin: 30px 0;">
-                            <a href="{invitation_link}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px;">
-                              Accept Invitation
-                            </a>
-                          </p>
-                          <p style="font-size: 14px; color: #999;">
-                            Or copy this link: <br>
-                            <span style="color: #4CAF50; word-break: break-all;">{invitation_link}</span>
-                          </p>
-                          <p style="font-size: 12px; color: #999; margin-top: 30px;">
-                            This invitation expires in 7 days.
-                          </p>
-                        </div>
-                      </body>
-                    </html>
-                    """
-                }
-            )
+            msg.attach(MIMEText(html, "html"))
             
-            if response.status_code in [200, 201]:
-                logger.info(f"✅ Email sent successfully to {invitee_email}")
-                return True
-            else:
-                logger.error(f"❌ Resend API error: {response.status_code} - {response.text}")
-                return False
-                
+            max_retries = 3
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    logger.info(f"🔄 Attempting to send email to {invitee_email} via Gmail SSL (Attempt {retry_count + 1}/{max_retries})")
+                    
+                    # Use SMTP_SSL for port 465
+                    with smtplib.SMTP_SSL(settings.SMTP_SERVER, 465, timeout=10) as server:
+                        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                        server.sendmail(settings.SMTP_FROM_EMAIL, invitee_email, msg.as_string())
+                    
+                    logger.info(f"✅ Email sent successfully to {invitee_email}")
+                    return True
+                    
+                except smtplib.SMTPException as e:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        logger.warning(f"⚠️ SMTP error (attempt {retry_count}): {str(e)}. Retrying...")
+                        import time
+                        time.sleep(2 ** retry_count)
+                    else:
+                        logger.error(f"❌ Failed to send email after {max_retries} attempts: {str(e)}")
+                        return False
+                        
         except Exception as e:
             logger.error(f"❌ Unexpected error sending email: {str(e)}")
             return False
-
     
     @classmethod
     async def start_worker(cls):
