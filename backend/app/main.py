@@ -2,13 +2,20 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import json
+import asyncio
 from typing import Dict, List
 from datetime import datetime
+
 from app.config import settings
 from app.database import init_db
 from app.api import router as api_router
+from app.services.email_queue import EmailQueue
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # WebSocket connection manager
@@ -19,12 +26,12 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, user_id: str):
         await websocket.accept()
         self.active_connections[user_id] = websocket
-        logger.info(f"User {user_id} connected to WebSocket")
+        logger.info(f"✅ User {user_id} connected to WebSocket")
         
     def disconnect(self, user_id: str):
         if user_id in self.active_connections:
             del self.active_connections[user_id]
-            logger.info(f"User {user_id} disconnected from WebSocket")
+            logger.info(f"❌ User {user_id} disconnected from WebSocket")
             
     async def send_personal_message(self, message: str, user_id: str):
         if user_id in self.active_connections:
@@ -56,15 +63,32 @@ app.add_middleware(
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
 
-# Initialize database
+# Initialize database and start email queue worker
 @app.on_event("startup")
 async def startup():
+    """Initialize database and start background tasks"""
+    logger.info("🚀 Application starting...")
+    
+    # Initialize database
     init_db()
-    logger.info("Application started")
+    logger.info("✅ Database initialized")
+    
+    # Initialize and start email queue worker
+    EmailQueue.initialize()
+    logger.info("✅ Email queue initialized")
+    
+    # Start email queue worker in background
+    asyncio.create_task(EmailQueue.start_worker())
+    logger.info("🚀 Email queue worker started")
+    
+    logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
+    logger.info(f"📧 Frontend URL: {settings.FRONTEND_URL}")
+    logger.info(f"🔐 CORS Origins: {settings.CORS_ORIGINS}")
 
 @app.on_event("shutdown")
 async def shutdown():
-    logger.info("Application shutting down")
+    """Cleanup on shutdown"""
+    logger.info("🛑 Application shutting down...")
 
 # Root endpoint
 @app.get("/")
@@ -72,7 +96,8 @@ async def root():
     return {
         "message": "Secure Messaging API",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": "/docs",
+        "environment": settings.ENVIRONMENT
     }
 
 # CORS preflight handler for debugging
@@ -83,7 +108,11 @@ async def options_handler(path: str):
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "environment": settings.ENVIRONMENT}
+    return {
+        "status": "healthy",
+        "environment": settings.ENVIRONMENT,
+        "database": "connected"
+    }
 
 # Favicon endpoint to prevent 405 errors
 @app.get("/favicon.ico")
@@ -114,7 +143,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 message_type = message_data.get("type")
                 payload = message_data.get("payload", {})
                 
-                logger.info(f"WebSocket message from {user_id}: {message_type}")
+                logger.info(f"📨 WebSocket message from {user_id}: {message_type}")
                 
                 if message_type == "new_message":
                     # Handle new message and forward to recipient
@@ -128,7 +157,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                             }),
                             recipient_id
                         )
-                        logger.info(f"Message forwarded from {user_id} to {recipient_id}")
+                        logger.info(f"📨 Message forwarded from {user_id} to {recipient_id}")
                     
                 elif message_type == "typing":
                     # Handle typing indicator
@@ -155,18 +184,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                             }),
                             contact_id
                         )
-                        logger.info(f"Contact added notification sent from {user_id} to {contact_id}")
+                        logger.info(f"👥 Contact added notification sent from {user_id} to {contact_id}")
                     
             except json.JSONDecodeError:
-                logger.error(f"Invalid JSON received from WebSocket (user: {user_id})")
+                logger.error(f"❌ Invalid JSON received from WebSocket (user: {user_id})")
             except Exception as e:
-                logger.error(f"Error processing WebSocket message: {str(e)}")
+                logger.error(f"❌ Error processing WebSocket message: {str(e)}")
                 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
-        logger.info(f"User {user_id} disconnected from WebSocket")
+        logger.info(f"❌ User {user_id} disconnected from WebSocket")
     except Exception as e:
-        logger.error(f"WebSocket error for user {user_id}: {str(e)}")
+        logger.error(f"❌ WebSocket error for user {user_id}: {str(e)}")
         manager.disconnect(user_id)
 
-logger.info(f"FastAPI app initialized in {settings.ENVIRONMENT} mode")
+logger.info(f"✅ FastAPI app initialized in {settings.ENVIRONMENT} mode")

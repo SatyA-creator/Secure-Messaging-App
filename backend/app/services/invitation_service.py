@@ -1,14 +1,18 @@
 import secrets
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import asyncio
+import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from uuid import UUID
+
 from app.models.invitation import Invitation
 from app.models.user import User
 from app.models.contact import Contact
 from app.config import settings
-import uuid
+from app.services.email_queue import EmailQueue
+
+logger = logging.getLogger(__name__)
+
 
 class InvitationService:
     
@@ -18,62 +22,39 @@ class InvitationService:
         return secrets.token_urlsafe(32)
     
     @staticmethod
-    def send_invitation_email(invitee_email: str, invitation_token: str, inviter_name: str):
-        """Send invitation email via SMTP"""
+    async def queue_invitation_email(
+        invitee_email: str,
+        invitation_token: str,
+        inviter_name: str
+    ) -> bool:
+        """
+        Queue invitation email for asynchronous sending
+        Returns immediately without waiting for email to send
+        """
         try:
-            # Create invitation link
+            # Create full invitation link
             invitation_link = f"{settings.FRONTEND_URL}/accept-invitation/{invitation_token}"
             
-            # Create email
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = f"{inviter_name} invited you to Secure Messaging App"
-            msg["From"] = settings.SMTP_FROM_EMAIL
-            msg["To"] = invitee_email
-            
-            # HTML email body
-            html = f"""
-            <html>
-              <body style="font-family: Arial, sans-serif; padding: 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
-                  <h2 style="color: #333;">You've been invited!</h2>
-                  <p style="font-size: 16px; color: #666;">
-                    <strong>{inviter_name}</strong> wants to connect with you on Secure Messaging App.
-                  </p>
-                  <p style="margin: 30px 0;">
-                    <a href="{invitation_link}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px;">
-                      Accept Invitation
-                    </a>
-                  </p>
-                  <p style="font-size: 14px; color: #999;">
-                    Or copy this link: <br>
-                    <span style="color: #4CAF50;">{invitation_link}</span>
-                  </p>
-                  <p style="font-size: 12px; color: #999; margin-top: 30px;">
-                    This invitation expires in 7 days.
-                  </p>
-                </div>
-              </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(html, "html"))
-            
-            # Send email
-            print(f"🔄 Attempting to send email to {invitee_email}...")
-            with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
-                server.starttls()
-                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-                server.send_message(msg)
-            
-            print(f"✅ Email sent successfully to {invitee_email}")
-            return True
+            # Add to email queue
+            return await EmailQueue.add_email_task(
+                invitee_email=invitee_email,
+                invitation_link=invitation_link,
+                inviter_name=inviter_name
+            )
         except Exception as e:
-            print(f"❌ Failed to send email: {str(e)}")
+            logger.error(f"❌ Failed to queue invitation email: {str(e)}")
             return False
     
     @staticmethod
-    def create_invitation(db: Session, inviter_id: uuid.UUID, invitee_email: str) -> Invitation:
-        """Create new invitation"""
+    def create_invitation(
+        db: Session,
+        inviter_id: UUID,
+        invitee_email: str
+    ) -> Invitation:
+        """
+        Create new invitation and queue email for sending
+        This is synchronous but returns immediately (email is queued)
+        """
         # Check if user already exists
         existing_user = db.query(User).filter(User.email == invitee_email).first()
         if existing_user:
@@ -88,13 +69,43 @@ class InvitationService:
         ).first()
         
         if existing_invitation:
-            # Resend email
+            # Resend email (queue it again)
             inviter = db.query(User).filter(User.id == inviter_id).first()
-            InvitationService.send_invitation_email(
-                invitee_email, 
-                existing_invitation.invitation_token,
-                inviter.username
-            )
+            
+            # Queue email asynchronously in background
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If event loop is running, schedule as task
+                    asyncio.create_task(
+                        InvitationService.queue_invitation_email(
+                            invitee_email,
+                            existing_invitation.invitation_token,
+                            inviter.username
+                        )
+                    )
+                else:
+                    # If no loop running, run it in a new loop
+                    asyncio.run(
+                        InvitationService.queue_invitation_email(
+                            invitee_email,
+                            existing_invitation.invitation_token,
+                            inviter.username
+                        )
+                    )
+            except RuntimeError:
+                # Fallback: create new loop
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                new_loop.run_until_complete(
+                    InvitationService.queue_invitation_email(
+                        invitee_email,
+                        existing_invitation.invitation_token,
+                        inviter.username
+                    )
+                )
+            
+            logger.info(f"📧 Resending invitation to {invitee_email}")
             return existing_invitation
         
         # Create new invitation
@@ -110,16 +121,57 @@ class InvitationService:
         db.commit()
         db.refresh(invitation)
         
-        # Send email
+        # Get inviter details
         inviter = db.query(User).filter(User.id == inviter_id).first()
-        InvitationService.send_invitation_email(invitee_email, token, inviter.username)
         
+        # Queue email asynchronously in background (non-blocking)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If event loop is running, schedule as task
+                asyncio.create_task(
+                    InvitationService.queue_invitation_email(
+                        invitee_email,
+                        token,
+                        inviter.username
+                    )
+                )
+            else:
+                # If no loop running, run it in a new loop
+                asyncio.run(
+                    InvitationService.queue_invitation_email(
+                        invitee_email,
+                        token,
+                        inviter.username
+                    )
+                )
+        except RuntimeError:
+            # Fallback: create new loop
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            new_loop.run_until_complete(
+                InvitationService.queue_invitation_email(
+                    invitee_email,
+                    token,
+                    inviter.username
+                )
+            )
+        
+        logger.info(f"✅ Invitation created for {invitee_email} (email queued)")
         return invitation
     
     @staticmethod
-    def accept_invitation(db: Session, token: str, new_user_id: uuid.UUID):
-        """Accept invitation and create bidirectional contact"""
-        invitation = db.query(Invitation).filter(Invitation.invitation_token == token).first()
+    def accept_invitation(
+        db: Session,
+        token: str,
+        new_user_id: UUID
+    ) -> Invitation:
+        """
+        Accept invitation and create bidirectional contact connection
+        """
+        invitation = db.query(Invitation).filter(
+            Invitation.invitation_token == token
+        ).first()
         
         if not invitation:
             raise ValueError("Invalid invitation token")
@@ -135,11 +187,18 @@ class InvitationService:
         invitation.accepted_at = datetime.utcnow()
         
         # Create bidirectional contacts
-        contact1 = Contact(user_id=invitation.inviter_id, contact_id=new_user_id)
-        contact2 = Contact(user_id=new_user_id, contact_id=invitation.inviter_id)
+        contact1 = Contact(
+            user_id=invitation.inviter_id,
+            contact_id=new_user_id
+        )
+        contact2 = Contact(
+            user_id=new_user_id,
+            contact_id=invitation.inviter_id
+        )
         
         db.add(contact1)
         db.add(contact2)
         db.commit()
         
+        logger.info(f"✅ Invitation {token} accepted - contacts created")
         return invitation
