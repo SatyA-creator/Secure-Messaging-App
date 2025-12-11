@@ -9,7 +9,7 @@ from app.models.invitation import Invitation
 from app.models.user import User
 from app.models.contact import Contact
 from app.config import settings
-from app.services.email_queue import EmailQueue
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class InvitationService:
         Queue invitation email for asynchronous sending
         Returns immediately without waiting for email to send
         """
+        from app.services.email_queue import EmailQueue
         try:
             # Create full invitation link
             invitation_link = f"{settings.FRONTEND_URL}/accept-invitation/{invitation_token}"
@@ -55,6 +56,7 @@ class InvitationService:
         Create new invitation and queue email for sending
         This is synchronous but returns immediately (email is queued)
         """
+        from app.services.email_queue import EmailQueue
         # Check if user already exists
         existing_user = db.query(User).filter(User.email == invitee_email).first()
         if existing_user:
