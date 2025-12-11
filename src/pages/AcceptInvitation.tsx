@@ -70,7 +70,7 @@ export function AcceptInvitation() {
       });
 
       // Redirect to chat after 2 seconds
-      setTimeout(() => navigate('/chat'), 2000);
+      setTimeout(() => navigate('/'), 2000);
     } catch (err) {
       toast({
         title: "Failed to accept invitation",

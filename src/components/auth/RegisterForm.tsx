@@ -121,7 +121,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     }
 
     // Navigate to chat
-    setTimeout(() => navigate('/chat'), 1500);
+    setTimeout(() => navigate('/'), 1500);
     
   } catch (error) {
     toast({
