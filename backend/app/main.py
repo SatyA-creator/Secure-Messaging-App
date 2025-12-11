@@ -73,14 +73,6 @@ async def startup():
     init_db()
     logger.info("✅ Database initialized")
     
-    # Initialize and start email queue worker
-    EmailQueue.initialize()
-    logger.info("✅ Email queue initialized")
-    
-    # Start email queue worker in background
-    asyncio.create_task(EmailQueue.start_worker())
-    logger.info("🚀 Email queue worker started")
-    
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📧 Frontend URL: {settings.FRONTEND_URL}")
     logger.info(f"🔐 CORS Origins: {settings.CORS_ORIGINS}")
