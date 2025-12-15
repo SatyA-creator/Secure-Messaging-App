@@ -98,6 +98,15 @@ class EmailQueue:
             </html>
             """
             
+            # ✅ Use verified domain if available, fallback to Resend default
+            from_email = (
+                f'QuantChat <noreply@{settings.VERIFIED_DOMAIN}>'
+                if hasattr(settings, 'VERIFIED_DOMAIN') and settings.VERIFIED_DOMAIN
+                else 'Secure Messaging <onboarding@resend.dev>'
+            )
+            
+            logger.info(f"📧 Sending from: {from_email}")
+            
             # Send via Resend API
             response = requests.post(
                 'https://api.resend.com/emails',
@@ -106,9 +115,9 @@ class EmailQueue:
                     'Content-Type': 'application/json'
                 },
                 json={
-                    'from': 'Secure Messaging <onboarding@resend.dev>',  # Use Resend default for free tier
+                    'from': from_email,
                     'to': [invitee_email],
-                    'subject': f'{inviter_name} invited you to Secure Messaging App',
+                    'subject': f'{inviter_name} invited you to QuantChat',
                     'html': html_content
                 },
                 timeout=10
@@ -120,18 +129,18 @@ class EmailQueue:
                 response_data = response.json()
                 logger.info(f"   Email ID: {response_data.get('id', 'N/A')}")
                 return True
+            elif response.status_code == 403:
+                error_data = response.json()
+                logger.error(
+                    f"❌ Resend API Error (403): {error_data.get('message', 'Unknown')}\n"
+                    f"   → Domain verification issue\n"
+                    f"   → Check: https://resend.com/domains"
+                )
+                return False
             elif response.status_code == 401:
                 logger.error(
                     "❌ Resend API Authentication Error (401)\n"
-                    "   → Check RESEND_API_KEY in .env\n"
-                    "   → Verify API key is valid: https://resend.com/api-keys"
-                )
-                return False
-            elif response.status_code == 422:
-                logger.error(
-                    f"❌ Resend API Validation Error (422)\n"
-                    f"   Response: {response.text}\n"
-                    f"   → Check 'from' email domain is verified"
+                    "   → Check RESEND_API_KEY in .env"
                 )
                 return False
             else:
@@ -142,10 +151,7 @@ class EmailQueue:
                 return False
                 
         except ImportError:
-            logger.error(
-                "❌ requests library not installed\n"
-                "   → Run: pip install requests"
-            )
+            logger.error("❌ requests library not installed\n   → Run: pip install requests")
             return False
         except Exception as e:
             logger.error(f"❌ Unexpected error sending email: {str(e)}", exc_info=True)
