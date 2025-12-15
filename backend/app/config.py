@@ -5,10 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Settings(BaseSettings):
     # Server
-    SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")   # changed
-    SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000")) # changed
+    SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     
@@ -42,7 +43,6 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8080",
         "http://127.0.0.1:8081",
         "https://secure-messaging-app-omega.vercel.app",
-        
     ]
     
     # Security
@@ -50,15 +50,17 @@ class Settings(BaseSettings):
     MAX_LOGIN_ATTEMPTS: int = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
     LOCKOUT_DURATION_MINUTES: int = int(os.getenv("LOCKOUT_DURATION_MINUTES", "15"))
 
-    # 🔹 Email / SMTP
+    # Email Configuration - Resend API (Primary)
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    
+    # Email Configuration - SMTP (Backup/Legacy - Not recommended)
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
-    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
 
-    # 🔹 Frontend & WebSocket URLs
+    # Frontend & WebSocket URLs
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://secure-messaging-app-omega.vercel.app")
     WEBSOCKET_URL: str = os.getenv("WEBSOCKET_URL", "ws://localhost:8000")
 
@@ -70,4 +72,18 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
+
 settings = Settings()
+
+# Validation: Log email configuration status on startup
+import logging
+logger = logging.getLogger(__name__)
+
+if settings.RESEND_API_KEY:
+    logger.info("✅ Resend API configured for email sending")
+else:
+    logger.warning(
+        "⚠️ RESEND_API_KEY not set - emails will fail!\n"
+        "   → Get API key from: https://resend.com\n"
+        "   → Add RESEND_API_KEY=re_xxx to .env"
+    )
