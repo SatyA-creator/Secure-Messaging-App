@@ -52,8 +52,9 @@ class Settings(BaseSettings):
 
     # Email Configuration - Resend API (Primary)
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    VERIFIED_DOMAIN: str = os.getenv("VERIFIED_DOMAIN", "")  # ✅ ADD THIS LINE
     
-    # Email Configuration - SMTP (Backup/Legacy - Not recommended)
+    # Email Configuration - SMTP (Backup/Legacy)
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
@@ -81,6 +82,10 @@ logger = logging.getLogger(__name__)
 
 if settings.RESEND_API_KEY:
     logger.info("✅ Resend API configured for email sending")
+    if settings.VERIFIED_DOMAIN:
+        logger.info(f"✅ Using verified domain: {settings.VERIFIED_DOMAIN}")
+    else:
+        logger.warning("⚠️ VERIFIED_DOMAIN not set - using Resend default email")
 else:
     logger.warning(
         "⚠️ RESEND_API_KEY not set - emails will fail!\n"
