@@ -1,13 +1,11 @@
 """
 Async Email Queue Service for Background Email Processing
 Handles sending emails without blocking the main request
+Uses Resend API for reliable email delivery
 """
 
 import asyncio
-import smtplib
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import Optional
 from app.config import settings
 
@@ -15,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class EmailQueue:
-    """Queue for asynchronous email sending"""
+    """Queue for asynchronous email sending via Resend API"""
     
     _queue: asyncio.Queue = None
     _worker_task: Optional[asyncio.Task] = None
@@ -57,67 +55,100 @@ class EmailQueue:
         invitation_link: str,
         inviter_name: str
     ) -> bool:
-        """Send invitation email via Gmail SMTP SSL"""
+        """Send invitation email via Resend API (most reliable)"""
         try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = f"{inviter_name} invited you to Secure Messaging App"
-            msg["From"] = settings.SMTP_FROM_EMAIL
-            msg["To"] = invitee_email
+            import requests
             
-            html = f"""
+            logger.info(f"🔄 Sending email to {invitee_email} via Resend API")
+            
+            # Validate Resend API key exists
+            if not hasattr(settings, 'RESEND_API_KEY') or not settings.RESEND_API_KEY:
+                logger.error(
+                    "❌ RESEND_API_KEY not configured in .env\n"
+                    "   → Get API key from: https://resend.com\n"
+                    "   → Add RESEND_API_KEY=xxx to backend/.env"
+                )
+                return False
+            
+            # Build HTML email content
+            html_content = f"""
             <html>
               <body style="font-family: Arial, sans-serif; padding: 20px;">
                 <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
-                  <h2 style="color: #333;">You've been invited!</h2>
+                  <h2 style="color: #333;">🔐 You've been invited!</h2>
                   <p style="font-size: 16px; color: #666;">
                     <strong>{inviter_name}</strong> wants to connect with you on Secure Messaging App.
                   </p>
                   <p style="margin: 30px 0;">
-                    <a href="{invitation_link}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px;">
+                    <a href="{invitation_link}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px; font-weight: bold;">
                       Accept Invitation
                     </a>
                   </p>
-                  <p style="font-size: 14px; color: #999;">
-                    Or copy this link: <br>
-                    <span style="color: #4CAF50; word-break: break-all;">{invitation_link}</span>
+                  <p style="font-size: 14px; color: #666;">
+                    Or copy this link:<br>
+                    <code style="background-color: #e8e8e8; padding: 5px 10px; border-radius: 3px; word-break: break-all;">
+                      {invitation_link}
+                    </code>
                   </p>
-                  <p style="font-size: 12px; color: #999; margin-top: 30px;">
-                    This invitation expires in 7 days.
+                  <p style="font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
+                    ⏰ This invitation expires in 7 days.
                   </p>
                 </div>
               </body>
             </html>
             """
             
-            msg.attach(MIMEText(html, "html"))
+            # Send via Resend API
+            response = requests.post(
+                'https://api.resend.com/emails',
+                headers={
+                    'Authorization': f'Bearer {settings.RESEND_API_KEY}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'from': 'Secure Messaging <onboarding@resend.dev>',  # Use Resend default for free tier
+                    'to': [invitee_email],
+                    'subject': f'{inviter_name} invited you to Secure Messaging App',
+                    'html': html_content
+                },
+                timeout=10
+            )
             
-            max_retries = 3
-            retry_count = 0
-            
-            while retry_count < max_retries:
-                try:
-                    logger.info(f"🔄 Attempting to send email to {invitee_email} via Gmail SSL (Attempt {retry_count + 1}/{max_retries})")
-                    
-                    # Use SMTP_SSL for port 465
-                    with smtplib.SMTP_SSL(settings.SMTP_SERVER, 465, timeout=10) as server:
-                        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-                        server.sendmail(settings.SMTP_FROM_EMAIL, invitee_email, msg.as_string())
-                    
-                    logger.info(f"✅ Email sent successfully to {invitee_email}")
-                    return True
-                    
-                except smtplib.SMTPException as e:
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        logger.warning(f"⚠️ SMTP error (attempt {retry_count}): {str(e)}. Retrying...")
-                        import time
-                        time.sleep(2 ** retry_count)
-                    else:
-                        logger.error(f"❌ Failed to send email after {max_retries} attempts: {str(e)}")
-                        return False
-                        
+            # Handle response
+            if response.status_code in [200, 201]:
+                logger.info(f"✅ Email sent successfully to {invitee_email}")
+                response_data = response.json()
+                logger.info(f"   Email ID: {response_data.get('id', 'N/A')}")
+                return True
+            elif response.status_code == 401:
+                logger.error(
+                    "❌ Resend API Authentication Error (401)\n"
+                    "   → Check RESEND_API_KEY in .env\n"
+                    "   → Verify API key is valid: https://resend.com/api-keys"
+                )
+                return False
+            elif response.status_code == 422:
+                logger.error(
+                    f"❌ Resend API Validation Error (422)\n"
+                    f"   Response: {response.text}\n"
+                    f"   → Check 'from' email domain is verified"
+                )
+                return False
+            else:
+                logger.error(
+                    f"❌ Resend API Error: {response.status_code}\n"
+                    f"   Response: {response.text}"
+                )
+                return False
+                
+        except ImportError:
+            logger.error(
+                "❌ requests library not installed\n"
+                "   → Run: pip install requests"
+            )
+            return False
         except Exception as e:
-            logger.error(f"❌ Unexpected error sending email: {str(e)}")
+            logger.error(f"❌ Unexpected error sending email: {str(e)}", exc_info=True)
             return False
     
     @classmethod
@@ -132,6 +163,7 @@ class EmailQueue:
             try:
                 email_data = await asyncio.wait_for(cls._queue.get(), timeout=60)
                 
+                # Send email in background thread
                 await asyncio.to_thread(
                     cls.send_invitation_email_sync,
                     email_data['invitee_email'],
@@ -142,7 +174,8 @@ class EmailQueue:
                 cls._queue.task_done()
                 
             except asyncio.TimeoutError:
+                # Queue is empty, continue waiting
                 continue
             except Exception as e:
-                logger.error(f"❌ Email worker error: {str(e)}")
+                logger.error(f"❌ Email worker error: {str(e)}", exc_info=True)
                 await asyncio.sleep(5)
