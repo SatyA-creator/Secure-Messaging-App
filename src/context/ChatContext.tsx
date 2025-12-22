@@ -173,9 +173,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       const token = localStorage.getItem('authToken');
-      console.log('Fetching contacts with URL:', `${ENV.API_URL}/contacts?user_id=${user.id}`);
+      console.log('Fetching contacts with URL:', `${ENV.API_URL}/contacts/?user_id=${user.id}`);
       
-      const response = await fetch(`${ENV.API_URL}/contacts?user_id=${user.id}`, {
+      const response = await fetch(`${ENV.API_URL}/contacts/?user_id=${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
