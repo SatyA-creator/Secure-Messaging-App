@@ -6,13 +6,13 @@ from typing import Optional
 class ContactCreate(BaseModel):
     user_id: UUID
     contact_id: UUID
-    display_name: Optional[str] = None
+    nickname: Optional[str] = None
 
 class ContactResponse(BaseModel):
     id: UUID
     user_id: UUID
     contact_id: UUID
-    display_name: Optional[str]
+    nickname: Optional[str]
     created_at: datetime
 
     class Config:

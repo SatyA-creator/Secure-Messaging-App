@@ -35,7 +35,7 @@ async def add_contact(contact: ContactCreate, db: Session = Depends(get_db)):
     db_contact = Contact(
         user_id=contact.user_id,
         contact_id=contact.contact_id,
-        display_name=contact.display_name
+        nickname=contact.nickname
     )
     
     db.add(db_contact)
@@ -46,7 +46,7 @@ async def add_contact(contact: ContactCreate, db: Session = Depends(get_db)):
         id=db_contact.id,
         user_id=db_contact.user_id,
         contact_id=db_contact.contact_id,
-        display_name=db_contact.display_name,
+        nickname=db_contact.nickname,
         created_at=db_contact.created_at
     )
 
@@ -82,7 +82,7 @@ async def get_contacts(user_id: uuid.UUID, db: Session = Depends(get_db)):
             id=contact.id,
             user_id=contact.user_id,
             contact_id=contact.contact_id,
-            display_name=contact.display_name,
+            nickname=contact.nickname,
             created_at=contact.created_at
         )
         for contact in contacts
