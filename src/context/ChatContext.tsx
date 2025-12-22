@@ -164,10 +164,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Fetch contacts from API
   const fetchContactsFromAPI = useCallback(async () => {
-    if (!user) return;
+    console.log('fetchContactsFromAPI called, user:', user?.id, user?.email);
+    
+    if (!user) {
+      console.warn('Cannot fetch contacts: user is null');
+      return;
+    }
 
     try {
       const token = localStorage.getItem('authToken');
+      console.log('Fetching contacts with URL:', `${ENV.API_URL}/contacts/${user.id}`);
+      
       const response = await fetch(`${ENV.API_URL}/contacts/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -175,8 +182,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
       });
 
+      console.log('Contacts API response status:', response.status);
+
       if (!response.ok) {
         console.error('Failed to fetch contacts:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         setContacts([]);
         setConversations({});
         return;
@@ -184,6 +195,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       const contactsData = await response.json();
       console.log('Fetched contacts from API:', contactsData);
+      console.log('Number of contacts:', contactsData.length);
 
       // Transform API contacts to Contact type
       const apiContacts: Contact[] = contactsData.map((c: any) => ({
@@ -197,6 +209,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         unreadCount: 0,
       }));
 
+      console.log('Transformed contacts:', apiContacts);
       setContacts(apiContacts);
 
       // Initialize empty conversations for each contact
@@ -210,6 +223,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         };
       });
       setConversations(convos);
+      console.log('Contacts state updated successfully');
 
     } catch (error) {
       console.error('Error fetching contacts:', error);
