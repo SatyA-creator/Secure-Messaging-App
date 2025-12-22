@@ -152,6 +152,7 @@ const storeToken = (token: string, user?: User): void => {
     localStorage.setItem('userId', user.id);
     localStorage.setItem('userEmail', user.email);
     localStorage.setItem('username', user.username);
+    localStorage.setItem('userRole', user.role || 'user');
   }
 };
 
@@ -162,6 +163,7 @@ const removeToken = (): void => {
   localStorage.removeItem('userId');
   localStorage.removeItem('userEmail');
   localStorage.removeItem('username');
+  localStorage.removeItem('userRole');
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -230,6 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         publicKey: response.user.public_key || 'api-public-key',
         isOnline: true,
         lastSeen: new Date(),
+        role: response.user.role || 'user',
       };
       
       // Store token and user data
@@ -290,6 +293,7 @@ const register = useCallback(async (email: string, username: string, password: s
       publicKey: userData.public_key || 'api-generated-public-key',
       isOnline: true,
       lastSeen: new Date(),
+      role: userData.role || 'user',
     };
     
     // ✅ Store the access token and user data

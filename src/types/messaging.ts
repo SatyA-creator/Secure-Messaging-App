@@ -7,6 +7,7 @@ export interface User {
   publicKey: string;
   isOnline: boolean;
   lastSeen: Date;
+  role?: 'admin' | 'user';
 }
 
 export interface Contact extends User {
