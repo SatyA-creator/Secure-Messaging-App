@@ -98,6 +98,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
                 "public_key": public_key_str,  # ✅ Return as base64 string
                 "is_active": db_user.is_active,
                 "avatar_url": db_user.avatar_url,
+                "role": db_user.role,
                 "created_at": db_user.created_at.isoformat() if db_user.created_at else None
             }
         }
@@ -139,7 +140,8 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
             "email": db_user.email,
             "username": db_user.username,
             "full_name": db_user.full_name,
-            "is_active": db_user.is_active
+            "is_active": db_user.is_active,
+            "role": db_user.role
         }
     }
 

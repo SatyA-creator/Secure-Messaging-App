@@ -52,8 +52,30 @@ async def add_contact(contact: ContactCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[ContactResponse])
 async def get_contacts(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Get all contacts for a user"""
-    contacts = db.query(Contact).filter(Contact.user_id == user_id).all()
+    """Get all contacts for a user based on their role"""
+    
+    # Get the requesting user
+    requesting_user = db.query(User).filter(User.id == user_id).first()
+    if not requesting_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Admin can see all their contacts (all users they invited)
+    # Regular users can only see the admin(s) who invited them
+    if requesting_user.role == 'admin':
+        # Admin sees all their contacts
+        contacts = db.query(Contact).filter(Contact.user_id == user_id).all()
+    else:
+        # Regular user only sees admins they're connected to
+        contacts = db.query(Contact).filter(
+            Contact.user_id == user_id
+        ).join(
+            User, Contact.contact_id == User.id
+        ).filter(
+            User.role == 'admin'
+        ).all()
     
     return [
         ContactResponse(
