@@ -145,15 +145,23 @@ const getStoredToken = (): string | null => {
   return localStorage.getItem('authToken');
 };
 
-// Store auth token
-const storeToken = (token: string): void => {
+// Store auth token and user data
+const storeToken = (token: string, user?: User): void => {
   localStorage.setItem('authToken', token);
+  if (user) {
+    localStorage.setItem('userId', user.id);
+    localStorage.setItem('userEmail', user.email);
+    localStorage.setItem('username', user.username);
+  }
 };
 
-// Remove auth token
+// Remove auth token and user data
 const removeToken = (): void => {
   localStorage.removeItem('authToken');
   localStorage.removeItem('user');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('username');
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -213,9 +221,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('API login successful:', response);
       
-      // Store token
-      storeToken(response.access_token);
-      
       // Create user object from API response
       const user: User = {
         id: response.user.id,
@@ -226,6 +231,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isOnline: true,
         lastSeen: new Date(),
       };
+      
+      // Store token and user data
+      storeToken(response.access_token, user);
       
       setState({
         user,
@@ -272,11 +280,6 @@ const register = useCallback(async (email: string, username: string, password: s
     
     console.log('API registration successful:', response);
     
-    // ✅ Store the access token
-    if (response.access_token) {
-      storeToken(response.access_token);
-    }
-    
     // ✅ Create user object from API response (now has nested user object)
     const userData = response.user || response;
     const user: User = {
@@ -288,6 +291,11 @@ const register = useCallback(async (email: string, username: string, password: s
       isOnline: true,
       lastSeen: new Date(),
     };
+    
+    // ✅ Store the access token and user data
+    if (response.access_token) {
+      storeToken(response.access_token, user);
+    }
     
     setState({
       user,

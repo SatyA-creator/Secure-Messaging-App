@@ -70,32 +70,69 @@ class EmailQueue:
                 )
                 return False
             
-            # Build HTML email content
+            # Build HTML email content with anti-spam improvements
             html_content = f"""
-            <html>
-              <body style="font-family: Arial, sans-serif; padding: 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 30px; border-radius: 10px;">
-                  <h2 style="color: #333;">🔐 You've been invited!</h2>
-                  <p style="font-size: 16px; color: #666;">
-                    <strong>{inviter_name}</strong> wants to connect with you on Secure Messaging App.
-                  </p>
-                  <p style="margin: 30px 0;">
-                    <a href="{invitation_link}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px; font-weight: bold;">
-                      Accept Invitation
-                    </a>
-                  </p>
-                  <p style="font-size: 14px; color: #666;">
-                    Or copy this link:<br>
-                    <code style="background-color: #e8e8e8; padding: 5px 10px; border-radius: 3px; word-break: break-all;">
-                      {invitation_link}
-                    </code>
-                  </p>
-                  <p style="font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
-                    ⏰ This invitation expires in 7 days.
-                  </p>
-                </div>
-              </body>
-            </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You have been invited to QuantChat</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center;">
+                            <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #18181b;">You have been invited to QuantChat</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 0 40px 30px;">
+                            <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #3f3f46;">
+                                Hi there,
+                            </p>
+                            <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #3f3f46;">
+                                <strong>{inviter_name}</strong> has invited you to join QuantChat, a secure messaging platform. Click the button below to accept the invitation and start chatting.
+                            </p>
+                            
+                            <!-- CTA Button -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="center" style="padding: 20px 0;">
+                                        <a href="{invitation_link}" style="display: inline-block; padding: 14px 32px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; text-align: center;">Accept Invitation</a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 20px 0 0; font-size: 14px; line-height: 20px; color: #71717a;">
+                                If the button doesn't work, copy and paste this link into your browser:
+                            </p>
+                            <p style="margin: 10px 0 0; padding: 12px; background-color: #f4f4f5; border-radius: 4px; font-size: 13px; line-height: 18px; color: #3f3f46; word-break: break-all; font-family: monospace;">
+                                {invitation_link}
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; border-top: 1px solid #e4e4e7;">
+                            <p style="margin: 0; font-size: 12px; line-height: 18px; color: #a1a1aa;">
+                                This invitation will expire in 7 days. If you did not expect this invitation, you can safely ignore this email.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
             """
             
             # ✅ Use verified domain if available, fallback to Resend default
