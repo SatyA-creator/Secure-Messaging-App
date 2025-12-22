@@ -163,21 +163,63 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (user) {
-      // Load demo contacts (excluding current user)
-      const filteredContacts = demoContacts.filter(c => c.id !== user.id);
-      setContacts(filteredContacts);
-      
-      // Initialize conversations
-      const convos: Record<string, Conversation> = {};
-      filteredContacts.forEach(contact => {
-        convos[contact.id] = {
-          contactId: contact.id,
-          messages: demoMessages[contact.id] || [],
-          isLoading: false,
-          hasMore: false,
-        };
-      });
-      setConversations(convos);
+      // Fetch real contacts from backend API
+      const fetchContacts = async () => {
+        try {
+          const token = localStorage.getItem('authToken');
+          const response = await fetch(`${ENV.API_URL}/contacts/${user.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            console.error('Failed to fetch contacts:', response.status);
+            // Fallback to empty contacts if API fails
+            setContacts([]);
+            setConversations({});
+            return;
+          }
+
+          const contactsData = await response.json();
+          console.log('Fetched contacts from API:', contactsData);
+
+          // Transform API contacts to Contact type
+          const apiContacts: Contact[] = contactsData.map((c: any) => ({
+            id: c.contact_user_id || c.contact_id || c.id,
+            username: c.username || c.contact_username || 'Unknown',
+            email: c.email || c.contact_email || '',
+            fullName: c.full_name || c.contact_full_name || c.username || 'Unknown User',
+            publicKey: c.public_key || 'api-key',
+            isOnline: c.is_online || false,
+            lastSeen: c.last_seen ? new Date(c.last_seen) : new Date(),
+            unreadCount: 0,
+          }));
+
+          setContacts(apiContacts);
+
+          // Initialize empty conversations for each contact
+          const convos: Record<string, Conversation> = {};
+          apiContacts.forEach(contact => {
+            convos[contact.id] = {
+              contactId: contact.id,
+              messages: [],
+              isLoading: false,
+              hasMore: false,
+            };
+          });
+          setConversations(convos);
+
+        } catch (error) {
+          console.error('Error fetching contacts:', error);
+          // Fallback to empty contacts
+          setContacts([]);
+          setConversations({});
+        }
+      };
+
+      fetchContacts();
     }
   }, [user]);
 
