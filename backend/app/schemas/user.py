@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     email: str
     username: str
     full_name: Optional[str] = None
+    role: Optional[str] = 'user'
     is_active: bool
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
