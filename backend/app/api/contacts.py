@@ -66,14 +66,15 @@ async def get_contacts(user_id: uuid.UUID, db: Session = Depends(get_db)):
     # Regular users can only see the admin(s) who invited them
     if requesting_user.role == 'admin':
         # Admin sees all their contacts
-        contacts = db.query(Contact).filter(Contact.user_id == user_id).all()
+        contacts = db.query(Contact, User).join(
+            User, Contact.contact_id == User.id
+        ).filter(Contact.user_id == user_id).all()
     else:
         # Regular user only sees admins they're connected to
-        contacts = db.query(Contact).filter(
-            Contact.user_id == user_id
-        ).join(
+        contacts = db.query(Contact, User).join(
             User, Contact.contact_id == User.id
         ).filter(
+            Contact.user_id == user_id,
             User.role == 'admin'
         ).all()
     
@@ -83,9 +84,14 @@ async def get_contacts(user_id: uuid.UUID, db: Session = Depends(get_db)):
             user_id=contact.user_id,
             contact_id=contact.contact_id,
             nickname=contact.nickname,
-            created_at=contact.created_at
+            created_at=contact.created_at,
+            contact_email=user.email,
+            contact_username=user.username,
+            contact_full_name=user.full_name,
+            contact_public_key=user.public_key,
+            contact_last_seen=user.last_seen
         )
-        for contact in contacts
+        for contact, user in contacts
     ]
 
 @router.delete("/{contact_id}")

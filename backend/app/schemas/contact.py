@@ -14,6 +14,12 @@ class ContactResponse(BaseModel):
     contact_id: UUID
     nickname: Optional[str]
     created_at: datetime
+    # Contact user information
+    contact_email: Optional[str] = None
+    contact_username: Optional[str] = None
+    contact_full_name: Optional[str] = None
+    contact_public_key: Optional[str] = None
+    contact_last_seen: Optional[datetime] = None
 
     class Config:
         from_attributes = True
