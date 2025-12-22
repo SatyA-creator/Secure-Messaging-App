@@ -182,13 +182,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('Found stored token, verifying...');
           const userProfile = await apiService.getProfile(token);
           
+          // Get role from API response or fallback to localStorage
+          const storedRole = localStorage.getItem('userRole');
+          const roleToUse = userProfile.role || storedRole || 'user';
+          
+          console.log('Role from API:', userProfile.role);
+          console.log('Role from localStorage:', storedRole);
+          console.log('Final role:', roleToUse);
+          
           const user: User = {
             id: userProfile.id,
             username: userProfile.username,
             email: userProfile.email,
             fullName: userProfile.full_name,
             publicKey: userProfile.public_key || 'api-public-key',
-            role: userProfile.role || localStorage.getItem('userRole') || 'user',
+            role: roleToUse,
             isOnline: true,
             lastSeen: new Date(),
           };
@@ -199,7 +207,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           
-          console.log('Auth restored from token, role:', user.role);
+          console.log('Auth restored from token');
+          console.log('User object:', user);
+          console.log('User role final:', user.role);
         } catch (error) {
           console.log('Token verification failed:', error);
           removeToken();
