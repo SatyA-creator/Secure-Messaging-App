@@ -182,13 +182,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('Found stored token, verifying...');
           const userProfile = await apiService.getProfile(token);
           
-          // Get role from API response or fallback to localStorage
+          // Get role - prioritize localStorage over API (in case backend not deployed yet)
           const storedRole = localStorage.getItem('userRole');
-          const roleToUse = userProfile.role || storedRole || 'user';
+          const roleToUse = storedRole || userProfile.role || 'user';
           
           console.log('Role from API:', userProfile.role);
           console.log('Role from localStorage:', storedRole);
-          console.log('Final role:', roleToUse);
+          console.log('Final role (localStorage priority):', roleToUse);
           
           const user: User = {
             id: userProfile.id,
