@@ -188,6 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: userProfile.email,
             fullName: userProfile.full_name,
             publicKey: userProfile.public_key || 'api-public-key',
+            role: userProfile.role || localStorage.getItem('userRole') || 'user',
             isOnline: true,
             lastSeen: new Date(),
           };
@@ -198,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           
-          console.log('Auth restored from token');
+          console.log('Auth restored from token, role:', user.role);
         } catch (error) {
           console.log('Token verification failed:', error);
           removeToken();
