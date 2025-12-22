@@ -179,27 +179,50 @@ class InvitationService:
             raise ValueError("Invalid invitation token")
         
         if invitation.is_accepted:
-            raise ValueError("Invitation already accepted")
+            # Check if contacts already exist
+            existing_contact = db.query(Contact).filter(
+                Contact.user_id == invitation.inviter_id,
+                Contact.contact_id == new_user_id
+            ).first()
+            
+            if existing_contact:
+                logger.info(f"✅ Invitation already processed - contacts exist")
+                return invitation
+            else:
+                raise ValueError("Invitation already accepted")
         
         if invitation.expires_at < datetime.utcnow():
             raise ValueError("Invitation expired")
+        
+        # Check if contacts already exist (edge case)
+        existing_contact1 = db.query(Contact).filter(
+            Contact.user_id == invitation.inviter_id,
+            Contact.contact_id == new_user_id
+        ).first()
+        existing_contact2 = db.query(Contact).filter(
+            Contact.user_id == new_user_id,
+            Contact.contact_id == invitation.inviter_id
+        ).first()
+        
+        # Create contacts only if they don't exist
+        if not existing_contact1:
+            contact1 = Contact(
+                user_id=invitation.inviter_id,
+                contact_id=new_user_id
+            )
+            db.add(contact1)
+        
+        if not existing_contact2:
+            contact2 = Contact(
+                user_id=new_user_id,
+                contact_id=invitation.inviter_id
+            )
+            db.add(contact2)
         
         # Mark as accepted
         invitation.is_accepted = True
         invitation.accepted_at = datetime.utcnow()
         
-        # Create bidirectional contacts
-        contact1 = Contact(
-            user_id=invitation.inviter_id,
-            contact_id=new_user_id
-        )
-        contact2 = Contact(
-            user_id=new_user_id,
-            contact_id=invitation.inviter_id
-        )
-        
-        db.add(contact1)
-        db.add(contact2)
         db.commit()
         
         logger.info(f"✅ Invitation {token} accepted - contacts created")
