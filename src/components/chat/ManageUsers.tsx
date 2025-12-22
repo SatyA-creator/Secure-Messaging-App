@@ -90,10 +90,10 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
         title: "Contact added!",
         description: "User added to your contacts successfully",
       });
- and contact list in sidebar
+
+      // Refresh the list and contact list in sidebar
       await fetchUsers();
-      await refreshContactlist
-      await fetchUsers();
+      await refreshContacts();
     } catch (err) {
       toast({
         title: "Failed to add contact",
