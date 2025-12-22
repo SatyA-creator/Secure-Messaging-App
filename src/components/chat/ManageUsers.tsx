@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useChat } from '@/context/ChatContext';
 import { ENV } from '@/config/env';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +26,7 @@ interface RegisteredUser {
 
 export function ManageUsers({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
+  const { refreshContacts } = useChat();
   const { toast } = useToast();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,8 +90,9 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
         title: "Contact added!",
         description: "User added to your contacts successfully",
       });
-
-      // Refresh the list
+ and contact list in sidebar
+      await fetchUsers();
+      await refreshContactlist
       await fetchUsers();
     } catch (err) {
       toast({
@@ -123,8 +126,9 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
         description: "User removed from your contacts",
       });
 
-      // Refresh the list
+      // Refresh the list and contact list in sidebar
       await fetchUsers();
+      await refreshContacts();
     } catch (err) {
       toast({
         title: "Failed to remove contact",
