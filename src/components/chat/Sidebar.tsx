@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { ContactList } from './ContactList';
 import { ConnectionStatus } from './ConnectionStatus';
-import { Shield, Settings, LogOut, UserPlus, Crown } from 'lucide-react';
+import { Shield, Settings, LogOut, UserPlus, Crown, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,11 +12,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SendInvitation } from '@/components/SendInvitation';
+import { ManageUsers } from './ManageUsers';
 import { Badge } from '@/components/ui/badge';
 
 export function Sidebar() {
   const { user, logout } = useAuth();
   const [showInvitation, setShowInvitation] = useState(false);
+  const [showManageUsers, setShowManageUsers] = useState(false);
   const isAdmin = user?.role === 'admin';
 
   return (
@@ -64,6 +66,10 @@ export function Sidebar() {
                   <UserPlus className="w-4 h-4 mr-2" />
                   Invite User
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowManageUsers(true)}>
+                  <Users className="w-4 h-4 mr-2" />
+                  Manage Users
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
             )}
@@ -82,14 +88,24 @@ export function Sidebar() {
 
       {/* Admin Action Buttons */}
       {isAdmin && (
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border space-y-2">
           <Button 
             onClick={() => setShowInvitation(true)} 
             className="w-full"
             size="sm"
+            variant="default"
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Invite New User
+          </Button>
+          <Button 
+            onClick={() => setShowManageUsers(true)} 
+            className="w-full"
+            size="sm"
+            variant="outline"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Manage Users
           </Button>
         </div>
       )}
@@ -112,6 +128,11 @@ export function Sidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{user?.fullName}</p>
+
+      {/* Manage Users Dialog */}
+      {showManageUsers && (
+        <ManageUsers onClose={() => setShowManageUsers(false)} />
+      )}
               <p className="text-xs text-muted-foreground truncate">@{user?.username}</p>
             </div>
           </div>

@@ -255,6 +255,20 @@ No new environment variables required. All role logic is handled in application 
 
 ## 🐛 Troubleshooting
 
+### Issue: "column contacts.contact_id does not exist"
+**Solution**: Your database schema is outdated. Run the migration:
+```bash
+# Local
+cd backend
+alembic upgrade head
+
+# Railway (see RAILWAY_DATABASE_FIX.md for detailed guide)
+railway run alembic upgrade head
+
+# Or run SQL directly
+railway run psql $DATABASE_URL -f backend/fix_contacts_schema.sql
+```
+
 ### Issue: User not seeing admin after accepting invitation
 **Solution**: Check that bidirectional contacts were created in `invitation_service.py`
 
