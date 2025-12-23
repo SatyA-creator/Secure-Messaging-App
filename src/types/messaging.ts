@@ -13,6 +13,7 @@ export interface User {
 export interface Contact extends User {
   unreadCount: number;
   lastMessage?: Message;
+  isTyping?: boolean;
 }
 
 export interface Message {

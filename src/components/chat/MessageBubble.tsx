@@ -57,7 +57,7 @@ function MessageStatus({ status }: { status: Message['status'] }) {
     case 'delivered':
       return <CheckCheck className="w-3.5 h-3.5 text-muted-foreground/70" />;
     case 'read':
-      return <CheckCheck className="w-3.5 h-3.5 text-primary" />;
+      return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />;
     case 'failed':
       return <AlertCircle className="w-3.5 h-3.5 text-destructive" />;
     default:
