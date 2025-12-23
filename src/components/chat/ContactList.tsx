@@ -21,7 +21,7 @@ interface ContactListProps {
   onSelectContact?: () => void;
 }
 
-export function ContactList({ onSelectContact }: ContactListProps) {
+export function ContactList({ onSelectContact }: ContactListProps = {}) {
   const { contacts, selectedContactId, selectContact, markAsRead, addContact } = useChat();
   const [searchQuery, setSearchQuery] = React.useState('');
 
@@ -35,7 +35,6 @@ export function ContactList({ onSelectContact }: ContactListProps) {
     if (contact.unreadCount > 0) {
       markAsRead(contact.id);
     }
-    onSelectContact?.();
   };
 
   const handleAddContact = async (email: string, displayName?: string) => {

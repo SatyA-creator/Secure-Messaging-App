@@ -6,24 +6,31 @@ import { useChat } from '@/context/ChatContext';
 
 function ChatContent() {
   const { selectedContactId } = useChat();
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+
+  // Update mobile view on resize
+  React.useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Sidebar - hidden on mobile when chat is selected */}
       <div className={`
-        ${selectedContactId && !showSidebar ? 'hidden md:flex' : 'flex'}
+        ${isMobileView && selectedContactId ? 'hidden' : 'flex'}
         w-full md:w-80 flex-shrink-0
       `}>
-        <Sidebar onSelectContact={() => setShowSidebar(false)} />
+        <Sidebar />
       </div>
       
       {/* Chat Window - full width on mobile, beside sidebar on desktop */}
       <div className={`
-        ${!selectedContactId ? 'hidden md:flex' : 'flex'}
+        ${isMobileView && !selectedContactId ? 'hidden' : 'flex'}
         flex-1 w-full
       `}>
-        <ChatWindow onBack={() => setShowSidebar(true)} />
+        <ChatWindow />
       </div>
     </div>
   );

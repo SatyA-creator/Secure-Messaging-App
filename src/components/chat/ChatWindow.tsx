@@ -14,7 +14,7 @@ interface ChatWindowProps {
 
 export function ChatWindow({ onBack }: ChatWindowProps) {
   const { user } = useAuth();
-  const { contacts, conversations, selectedContactId, sendMessage, sendTypingIndicator } = useChat();
+  const { contacts, conversations, selectedContactId, sendMessage, sendTypingIndicator, selectContact } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<any>(null);
 
@@ -27,6 +27,11 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
       wsRef.current = module.default.getInstance();
     });
   }, []);
+
+  const handleBackClick = () => {
+    // Clear selection to go back to contact list on mobile
+    selectContact('');
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -82,16 +87,14 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
       <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-border bg-card/50">
         <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
           {/* Back button for mobile */}
-          {onBack && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="md:hidden -ml-2 flex-shrink-0"
-              onClick={onBack}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden -ml-2 flex-shrink-0"
+            onClick={handleBackClick}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
           <div className="relative flex-shrink-0">
             <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center">
               <span className="font-medium text-primary text-sm md:text-base">

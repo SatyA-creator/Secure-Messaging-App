@@ -352,9 +352,54 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchContactsFromAPI]);
 
-  const selectContact = useCallback((contactId: string) => {
+  const selectContact = useCallback(async (contactId: string) => {
     setSelectedContactId(contactId);
-  }, []);
+    
+    // Fetch conversation history from backend
+    if (user) {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(
+          `${ENV.API_URL}/messages/conversation/${contactId}?current_user_id=${user.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (response.ok) {
+          const messages = await response.json();
+          console.log(`\ud83d\udcdd Loaded ${messages.length} messages for contact ${contactId}`);
+          
+          // Transform API messages to Message type
+          const transformedMessages: Message[] = messages.map((msg: any) => ({
+            id: msg.id,
+            senderId: msg.sender_id,
+            recipientId: msg.recipient_id,
+            encryptedContent: msg.encrypted_content,
+            decryptedContent: msg.encrypted_content,
+            status: msg.is_read === 2 ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
+            createdAt: new Date(msg.created_at),
+            isEncrypted: true,
+          }));
+          
+          setConversations(prev => ({
+            ...prev,
+            [contactId]: {
+              contactId,
+              messages: transformedMessages,
+              isLoading: false,
+              hasMore: false,
+            },
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load conversation:', error);
+      }
+    }
+  }, [user]);
 
   // ✅ CRITICAL FIX #4: Actually send messages via WebSocket
   const sendMessage = useCallback(async (recipientId: string, content: string) => {
