@@ -21,9 +21,6 @@ class User(Base):
     avatar_url = Column(String(500), nullable=True)
     bio = Column(String(500), nullable=True)
     
-    # Role-based access control
-    role = Column(String(20), default='user', nullable=False)  # 'admin' or 'user'
-    
     # Status
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
