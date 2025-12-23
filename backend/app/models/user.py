@@ -26,6 +26,9 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     last_seen = Column(DateTime, default=datetime.utcnow)
     
+    # Role-based access control
+    role = Column(String(20), nullable=False, default='user', server_default='user')
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
