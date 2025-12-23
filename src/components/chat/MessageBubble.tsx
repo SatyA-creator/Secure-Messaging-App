@@ -13,20 +13,20 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
   return (
     <div
       className={cn(
-        "flex animate-message",
+        "flex animate-message px-2 md:px-0",
         isOwn ? "justify-end" : "justify-start"
       )}
     >
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-4 py-2.5 relative group",
+          "max-w-[85%] md:max-w-[75%] rounded-2xl px-3 md:px-4 py-2 md:py-2.5 relative group",
           isOwn
             ? "message-sent rounded-br-md"
             : "message-received rounded-bl-md"
         )}
       >
         <p className="text-sm leading-relaxed break-words">
-          {message.decryptedContent || '[Encrypted message]'}
+          {message.decryptedContent?.replace(/^encrypted:/, '') || '[Encrypted message]'}
         </p>
         
         <div className={cn(
