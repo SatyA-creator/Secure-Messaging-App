@@ -19,7 +19,7 @@ interface SidebarProps {
   onSelectContact?: () => void;
 }
 
-export function Sidebar({ onSelectContact }: SidebarProps) {
+export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const { user, logout } = useAuth();
   const [showInvitation, setShowInvitation] = useState(false);
   const [showManageUsers, setShowManageUsers] = useState(false);
