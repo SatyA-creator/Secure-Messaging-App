@@ -14,6 +14,7 @@ interface ChatContextType {
   addContact: (email: string, displayName?: string) => Promise<void>;
   refreshContacts: () => Promise<void>;
   isConnected: boolean;
+  sendTypingIndicator: (recipientId: string, isTyping: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -277,13 +278,56 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       };
 
+      // ✅ Listen for typing indicators
+      const handleTyping = (data: any) => {
+        const senderId = data.sender_id || data.user_id;
+        const isTyping = data.is_typing || false;
+        if (senderId) {
+          console.log(`⌨️ User ${senderId} is ${isTyping ? 'typing' : 'stopped typing'}`);
+          setContacts(prev =>
+            prev.map(c => c.id === senderId ? { ...c, isTyping } : c)
+          );
+          
+          // Auto-clear typing indicator after 3 seconds
+          if (isTyping) {
+            setTimeout(() => {
+              setContacts(prev =>
+                prev.map(c => c.id === senderId ? { ...c, isTyping: false } : c)
+              );
+            }, 3000);
+          }
+        }
+      };
+
+      // ✅ Listen for message read confirmations
+      const handleMessageRead = (data: any) => {
+        console.log('✅ Message read confirmation:', data);
+        const messageId = data.message_id;
+        if (messageId) {
+          setConversations(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(contactId => {
+              updated[contactId] = {
+                ...updated[contactId],
+                messages: updated[contactId].messages.map(m =>
+                  m.id === messageId ? { ...m, status: 'read' as MessageStatus } : m
+                ),
+              };
+            });
+            return updated;
+          });
+        }
+      };
+
       // Register all event handlers
       wsRef.current.on('new_message', handleNewMessage);
       wsRef.current.on('contact_added', handleContactAdded);
       wsRef.current.on('message_sent', handleMessageSent);
       wsRef.current.on('message_delivered', handleMessageDelivered);
+      wsRef.current.on('message_read', handleMessageRead);
       wsRef.current.on('user_online', handleUserOnline);
       wsRef.current.on('user_offline', handleUserOffline);
+      wsRef.current.on('typing', handleTyping);
 
       return () => {
         if (wsRef.current) {
@@ -291,8 +335,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           wsRef.current.off('contact_added', handleContactAdded);
           wsRef.current.off('message_sent', handleMessageSent);
           wsRef.current.off('message_delivered', handleMessageDelivered);
+          wsRef.current.off('message_read', handleMessageRead);
           wsRef.current.off('user_online', handleUserOnline);
           wsRef.current.off('user_offline', handleUserOffline);
+          wsRef.current.off('typing', handleTyping);
           wsRef.current.disconnect();
         }
       };
@@ -322,6 +368,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       throw new Error('WebSocket not connected. Please refresh the page.');
     }
 
+    // Check if recipient is online to set initial status
+    const recipient = contacts.find(c => c.id === recipientId);
+    const isRecipientOnline = recipient?.isOnline || false;
+
     const messageId = crypto.randomUUID();
     const newMessage: Message = {
       id: messageId,
@@ -329,7 +379,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       recipientId,
       encryptedContent: `encrypted:${content}`,
       decryptedContent: content,
-      status: 'sending',
+      status: isRecipientOnline ? 'sending' : 'sent',
       createdAt: new Date(),
       isEncrypted: true,
     };
@@ -382,6 +432,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ✅ CRITICAL FIX #5: Refresh contacts after adding
+  // ✅ Send typing indicator
+  const sendTypingIndicator = useCallback((recipientId: string, isTyping: boolean) => {
+    if (wsRef.current?.isConnected()) {
+      wsRef.current.send('typing', {
+        recipient_id: recipientId,
+        is_typing: isTyping
+      });
+    }
+  }, []);
+
   const addContact = useCallback(async (email: string, displayName?: string) => {
     if (!user) throw new Error('User not authenticated');
     
@@ -445,6 +505,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addContact,
         refreshContacts,
         isConnected,
+        sendTypingIndicator,
       }}
     >
       {children}

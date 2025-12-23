@@ -2,10 +2,20 @@ import React from 'react';
 import { useChat } from '@/context/ChatContext';
 import { Contact } from '@/types/messaging';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { AddContactDialog } from './AddContactDialog';
+
+function formatMessageTime(date: Date): string {
+  if (isToday(date)) {
+    return format(date, 'HH:mm');
+  } else if (isYesterday(date)) {
+    return 'Yesterday';
+  } else {
+    return format(date, 'MMM d');
+  }
+}
 
 export function ContactList() {
   const { contacts, selectedContactId, selectContact, markAsRead, addContact } = useChat();
@@ -108,13 +118,17 @@ function ContactItem({ contact, isSelected, onClick }: ContactItemProps) {
           <span className="font-medium truncate">{contact.fullName}</span>
           {lastMessage && (
             <span className="text-xs text-muted-foreground flex-shrink-0">
-              {formatDistanceToNow(lastMessage.createdAt, { addSuffix: false })}
+              {formatMessageTime(lastMessage.createdAt)}
             </span>
           )}
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm text-muted-foreground truncate">
-            {lastMessage?.decryptedContent || `@${contact.username}`}
+            {contact.isTyping ? (
+              <span className="text-primary italic">typing...</span>
+            ) : (
+              lastMessage?.decryptedContent || `@${contact.username}`
+            )}
           </span>
           {contact.unreadCount > 0 && (
             <span className="flex-shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">

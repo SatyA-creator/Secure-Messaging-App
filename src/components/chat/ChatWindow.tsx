@@ -10,15 +10,41 @@ import { formatDistanceToNow } from 'date-fns';
 
 export function ChatWindow() {
   const { user } = useAuth();
-  const { contacts, conversations, selectedContactId, sendMessage } = useChat();
+  const { contacts, conversations, selectedContactId, sendMessage, sendTypingIndicator } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<any>(null);
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
   const conversation = selectedContactId ? conversations[selectedContactId] : null;
 
+  // Import WebSocketService
+  useEffect(() => {
+    import('@/lib/websocket').then(module => {
+      wsRef.current = module.default.getInstance();
+    });
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation?.messages]);
+
+  // Send read confirmations for unread messages
+  useEffect(() => {
+    if (selectedContactId && conversation?.messages && user && wsRef.current) {
+      const unreadMessages = conversation.messages.filter(
+        msg => msg.senderId === selectedContactId && msg.status !== 'read'
+      );
+      
+      unreadMessages.forEach(msg => {
+        if (wsRef.current?.isConnected()) {
+          wsRef.current.send('read_confirmation', {
+            message_id: msg.id,
+            sender_id: msg.senderId
+          });
+        }
+      });
+    }
+  }, [selectedContactId, conversation?.messages, user]);
 
   const handleSendMessage = async (content: string) => {
     if (selectedContactId) {
@@ -67,9 +93,13 @@ export function ChatWindow() {
           <div>
             <h3 className="font-medium">{selectedContact.fullName}</h3>
             <p className="text-xs text-muted-foreground">
-              {selectedContact.isOnline
-                ? 'Online'
-                : `Last seen ${formatDistanceToNow(selectedContact.lastSeen, { addSuffix: true })}`}
+              {selectedContact.isTyping ? (
+                <span className="text-primary font-medium">typing...</span>
+              ) : selectedContact.isOnline ? (
+                'Online'
+              ) : (
+                `Last seen ${formatDistanceToNow(selectedContact.lastSeen, { addSuffix: true })}`
+              )}
             </p>
           </div>
         </div>
@@ -108,7 +138,15 @@ export function ChatWindow() {
       </div>
 
       {/* Input */}
-      <MessageInput onSend={handleSendMessage} />
+      <MessageInput 
+        onSend={handleSendMessage}
+        recipientId={selectedContactId || undefined}
+        onTyping={(isTyping) => {
+          if (selectedContactId) {
+            sendTypingIndicator(selectedContactId, isTyping);
+          }
+        }}
+      />
     </div>
   );
 }
