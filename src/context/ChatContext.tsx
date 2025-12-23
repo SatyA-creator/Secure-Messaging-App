@@ -18,107 +18,6 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-// Demo contacts
-const demoContacts: Contact[] = [
-  {
-    id: '2',
-    username: 'bob',
-    email: 'bob@secure.chat',
-    fullName: 'Bob Wilson',
-    publicKey: 'demo-key-bob',
-    isOnline: true,
-    lastSeen: new Date(),
-    unreadCount: 2,
-  },
-  {
-    id: '3',
-    username: 'carol',
-    email: 'carol@secure.chat',
-    fullName: 'Carol Martinez',
-    publicKey: 'demo-key-carol',
-    isOnline: false,
-    lastSeen: new Date(Date.now() - 3600000),
-    unreadCount: 0,
-  },
-  {
-    id: '4',
-    username: 'david',
-    email: 'david@secure.chat',
-    fullName: 'David Kim',
-    publicKey: 'demo-key-david',
-    isOnline: true,
-    lastSeen: new Date(),
-    unreadCount: 0,
-  },
-  {
-    id: '5',
-    username: 'eva',
-    email: 'eva@secure.chat',
-    fullName: 'Eva Johnson',
-    publicKey: 'demo-key-eva',
-    isOnline: false,
-    lastSeen: new Date(Date.now() - 7200000),
-    unreadCount: 5,
-  },
-];
-
-const demoMessages: Record<string, Message[]> = {
-  '2': [
-    {
-      id: '1',
-      senderId: '2',
-      recipientId: '1',
-      encryptedContent: 'encrypted:Hey! Did you see the latest security update?',
-      decryptedContent: 'Hey! Did you see the latest security update?',
-      status: 'read',
-      createdAt: new Date(Date.now() - 3600000),
-      isEncrypted: true,
-    },
-    {
-      id: '2',
-      senderId: '1',
-      recipientId: '2',
-      encryptedContent: 'encrypted:Yes! The new E2E encryption is amazing.',
-      decryptedContent: 'Yes! The new E2E encryption is amazing.',
-      status: 'read',
-      createdAt: new Date(Date.now() - 3500000),
-      isEncrypted: true,
-    },
-    {
-      id: '3',
-      senderId: '2',
-      recipientId: '1',
-      encryptedContent: 'encrypted:AES-256-GCM is such a solid choice for message encryption.',
-      decryptedContent: 'AES-256-GCM is such a solid choice for message encryption.',
-      status: 'delivered',
-      createdAt: new Date(Date.now() - 1800000),
-      isEncrypted: true,
-    },
-    {
-      id: '4',
-      senderId: '2',
-      recipientId: '1',
-      encryptedContent: 'encrypted:The server never sees our plaintext messages! 🔒',
-      decryptedContent: 'The server never sees our plaintext messages! 🔒',
-      status: 'delivered',
-      createdAt: new Date(Date.now() - 600000),
-      isEncrypted: true,
-    },
-  ],
-  '5': [
-    {
-      id: '5',
-      senderId: '5',
-      recipientId: '1',
-      encryptedContent: 'encrypted:Check out this new feature!',
-      decryptedContent: 'Check out this new feature!',
-      status: 'delivered',
-      createdAt: new Date(Date.now() - 86400000),
-      isEncrypted: true,
-    },
-  ],
-};
-
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -126,41 +25,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocketService | null>(null);
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    if (user) {
-      wsRef.current = WebSocketService.getInstance();
-      
-      // Connect using the user ID
-      wsRef.current.connect(user.id)
-        .then(() => {
-          setIsConnected(true);
-          console.log('Connected to WebSocket');
-        })
-        .catch((error) => {
-          console.error('Failed to connect to WebSocket:', error);
-          setIsConnected(false);
-        });
-
-      // Set up event listeners
-      wsRef.current.on('new_message', (data) => {
-        // Handle incoming messages
-        console.log('New message received:', data);
-      });
-
-      wsRef.current.on('contact_added', (data) => {
-        // Handle new contacts
-        console.log('Contact added:', data);
-      });
-
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.disconnect();
-        }
-      };
-    }
-  }, [user]);
 
   // Fetch contacts from API
   const fetchContactsFromAPI = useCallback(async () => {
@@ -238,6 +102,204 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     await fetchContactsFromAPI();
   }, [fetchContactsFromAPI]);
 
+  // ✅ CRITICAL FIX #1: Initialize WebSocket with JWT token
+  useEffect(() => {
+    if (user) {
+      wsRef.current = WebSocketService.getInstance();
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        console.error('❌ No auth token found');
+        return;
+      }
+      
+      // ✅ Connect using the user ID and JWT token
+      wsRef.current.connect(user.id, token)
+        .then(() => {
+          setIsConnected(true);
+          console.log('✅ Connected to WebSocket with authentication');
+        })
+        .catch((error) => {
+          console.error('❌ Failed to connect to WebSocket:', error);
+          setIsConnected(false);
+        });
+
+      // ✅ CRITICAL FIX #2: Set up event listeners for incoming messages
+      const handleNewMessage = (data: any) => {
+        console.log('📨 New message received:', data);
+        
+        const senderId = data.sender_id || data.senderId;
+        const messageId = data.message_id || data.messageId || crypto.randomUUID();
+        
+        if (senderId) {
+          // Add message to conversation
+          setConversations(prev => {
+            const existingConversation = prev[senderId] || { 
+              contactId: senderId, 
+              messages: [], 
+              isLoading: false, 
+              hasMore: false 
+            };
+            
+            return {
+              ...prev,
+              [senderId]: {
+                ...existingConversation,
+                messages: [...existingConversation.messages, {
+                  id: messageId,
+                  senderId: senderId,
+                  recipientId: user.id,
+                  encryptedContent: data.encrypted_content,
+                  decryptedContent: data.encrypted_content, // Will decrypt on display
+                  status: 'delivered' as MessageStatus,
+                  createdAt: new Date(data.timestamp || Date.now()),
+                  isEncrypted: true,
+                }],
+              },
+            };
+          });
+          
+          // Update unread count
+          setContacts(prev =>
+            prev.map(c => c.id === senderId ? { ...c, unreadCount: (c.unreadCount || 0) + 1 } : c)
+          );
+          
+          // ✅ Send delivery confirmation
+          if (wsRef.current?.isConnected()) {
+            wsRef.current.send('delivery_confirmation', {
+              message_id: messageId,
+              sender_id: senderId
+            });
+          }
+        }
+      };
+
+      // ✅ CRITICAL FIX #3: Listen for contact_added events
+      const handleContactAdded = (data: any) => {
+        console.log('👥 New contact added:', data);
+        
+        const contactId = data.contact_id || data.user_id;
+        if (contactId) {
+          const newContact: Contact = {
+            id: contactId,
+            username: data.username || 'Unknown',
+            email: data.email || '',
+            fullName: data.full_name || data.username || 'Unknown User',
+            publicKey: data.public_key || 'api-key',
+            isOnline: data.is_online || false,
+            lastSeen: new Date(),
+            unreadCount: 0,
+          };
+          
+          setContacts(prev => {
+            // Avoid duplicates
+            if (!prev.find(c => c.id === newContact.id)) {
+              return [...prev, newContact];
+            }
+            return prev;
+          });
+          
+          // Initialize conversation
+          setConversations(prev => ({
+            ...prev,
+            [contactId]: {
+              contactId: contactId,
+              messages: [],
+              isLoading: false,
+              hasMore: false,
+            },
+          }));
+        }
+      };
+
+      // ✅ Listen for message_sent confirmation
+      const handleMessageSent = (data: any) => {
+        console.log('✅ Message sent confirmation:', data);
+        
+        const messageId = data.message_id;
+        if (messageId) {
+          // Update message status to 'sent'
+          setConversations(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(contactId => {
+              updated[contactId] = {
+                ...updated[contactId],
+                messages: updated[contactId].messages.map(m =>
+                  m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m
+                ),
+              };
+            });
+            return updated;
+          });
+        }
+      };
+
+      // ✅ Listen for message_delivered confirmation
+      const handleMessageDelivered = (data: any) => {
+        console.log('✅ Message delivered confirmation:', data);
+        
+        const messageId = data.message_id;
+        if (messageId) {
+          // Update message status to 'delivered'
+          setConversations(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(contactId => {
+              updated[contactId] = {
+                ...updated[contactId],
+                messages: updated[contactId].messages.map(m =>
+                  m.id === messageId ? { ...m, status: 'delivered' as MessageStatus } : m
+                ),
+              };
+            });
+            return updated;
+          });
+        }
+      };
+
+      // ✅ Listen for user online/offline status
+      const handleUserOnline = (data: any) => {
+        const userId = data.user_id;
+        if (userId) {
+          console.log(`✅ User ${userId} came online`);
+          setContacts(prev =>
+            prev.map(c => c.id === userId ? { ...c, isOnline: true, lastSeen: new Date() } : c)
+          );
+        }
+      };
+
+      const handleUserOffline = (data: any) => {
+        const userId = data.user_id;
+        if (userId) {
+          console.log(`❌ User ${userId} went offline`);
+          setContacts(prev =>
+            prev.map(c => c.id === userId ? { ...c, isOnline: false, lastSeen: new Date() } : c)
+          );
+        }
+      };
+
+      // Register all event handlers
+      wsRef.current.on('new_message', handleNewMessage);
+      wsRef.current.on('contact_added', handleContactAdded);
+      wsRef.current.on('message_sent', handleMessageSent);
+      wsRef.current.on('message_delivered', handleMessageDelivered);
+      wsRef.current.on('user_online', handleUserOnline);
+      wsRef.current.on('user_offline', handleUserOffline);
+
+      return () => {
+        if (wsRef.current) {
+          wsRef.current.off('new_message', handleNewMessage);
+          wsRef.current.off('contact_added', handleContactAdded);
+          wsRef.current.off('message_sent', handleMessageSent);
+          wsRef.current.off('message_delivered', handleMessageDelivered);
+          wsRef.current.off('user_online', handleUserOnline);
+          wsRef.current.off('user_offline', handleUserOffline);
+          wsRef.current.disconnect();
+        }
+      };
+    }
+  }, [user]);
+
+  // Fetch contacts on mount
   useEffect(() => {
     if (user) {
       fetchContactsFromAPI();
@@ -248,11 +310,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSelectedContactId(contactId);
   }, []);
 
+  // ✅ CRITICAL FIX #4: Actually send messages via WebSocket
   const sendMessage = useCallback(async (recipientId: string, content: string) => {
-    if (!user) return;
+    if (!user) {
+      console.error('❌ Cannot send message: User not authenticated');
+      return;
+    }
+    
+    if (!wsRef.current?.isConnected()) {
+      console.error('❌ Cannot send message: WebSocket not connected');
+      throw new Error('WebSocket not connected. Please refresh the page.');
+    }
 
+    const messageId = crypto.randomUUID();
     const newMessage: Message = {
-      id: crypto.randomUUID(),
+      id: messageId,
       senderId: user.id,
       recipientId,
       encryptedContent: `encrypted:${content}`,
@@ -262,7 +334,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isEncrypted: true,
     };
 
-    // Add message optimistically
+    // Add message optimistically to UI
     setConversations(prev => ({
       ...prev,
       [recipientId]: {
@@ -271,32 +343,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       },
     }));
 
-    // Simulate sending
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      // ✅ ACTUALLY SEND MESSAGE VIA WEBSOCKET
+      wsRef.current.send('message', {
+        recipient_id: recipientId,
+        encrypted_content: newMessage.encryptedContent,
+        encrypted_session_key: 'session-key-placeholder', // Replace with actual encryption logic
+        message_id: messageId
+      });
+      
+      console.log(`📤 Message sent to ${recipientId}: "${content.substring(0, 50)}..."`);
+      
+      // Message status will be updated by WebSocket event handlers
+      // (message_sent and message_delivered events)
 
-    // Update status to sent
-    setConversations(prev => ({
-      ...prev,
-      [recipientId]: {
-        ...prev[recipientId],
-        messages: prev[recipientId].messages.map(m =>
-          m.id === newMessage.id ? { ...m, status: 'sent' as MessageStatus } : m
-        ),
-      },
-    }));
-
-    // Simulate delivery
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    setConversations(prev => ({
-      ...prev,
-      [recipientId]: {
-        ...prev[recipientId],
-        messages: prev[recipientId].messages.map(m =>
-          m.id === newMessage.id ? { ...m, status: 'delivered' as MessageStatus } : m
-        ),
-      },
-    }));
+    } catch (error) {
+      console.error('❌ Failed to send message:', error);
+      
+      // Update status to failed
+      setConversations(prev => ({
+        ...prev,
+        [recipientId]: {
+          ...prev[recipientId],
+          messages: prev[recipientId].messages.map(m =>
+            m.id === messageId ? { ...m, status: 'failed' as MessageStatus } : m
+          ),
+        },
+      }));
+      
+      throw error;
+    }
   }, [user]);
 
   const markAsRead = useCallback((contactId: string) => {
@@ -305,40 +381,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
- const addContact = useCallback(async (email: string, displayName?: string) => {
-  if (!user) throw new Error('User not authenticated');
-  
-  try {
-    // ✅ Send invitation via API instead of directly adding
-    const response = await fetch(`${ENV.API_URL}/invitations/send`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` 
-      },
-      body: JSON.stringify({ 
-        inviter_email: user.email,  // ✅ Use inviter_email instead of inviter_id
-        invitee_email: email 
-      })
-    });
+  // ✅ CRITICAL FIX #5: Refresh contacts after adding
+  const addContact = useCallback(async (email: string, displayName?: string) => {
+    if (!user) throw new Error('User not authenticated');
+    
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) throw new Error('Not authenticated');
+      
+      // ✅ Send invitation via API
+      const response = await fetch(`${ENV.API_URL}/invitations/send`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ 
+          inviter_email: user.email,
+          invitee_email: email 
+        })
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to send invitation');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to send invitation');
+      }
+
+      const result = await response.json();
+      console.log('✅ Invitation sent:', result);
+      
+      // ✅ CRITICAL: Refresh contacts after invitation sent
+      setTimeout(() => {
+        console.log('🔄 Refreshing contacts list...');
+        refreshContacts();
+      }, 500);
+      
+      // ✅ Notify via WebSocket if contact is online
+      if (wsRef.current?.isConnected() && result.contact_id) {
+        wsRef.current.send('contact_added', {
+          contact_id: result.contact_id,
+          inviter_id: user.id,
+          invitee_email: email
+        });
+      }
+
+      return result;
+
+    } catch (error) {
+      console.error('❌ Failed to send invitation:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to send invitation');
     }
-
-    const result = await response.json();
-    console.log('✅ Invitation sent:', result);
-
-    // Don't add to contacts yet - wait for acceptance
-    return result;
-
-  } catch (error) {
-    console.error('Failed to send invitation:', error);
-    throw new Error(error instanceof Error ? error.message : 'Failed to send invitation');
-  }
-}, [user]);
-
+  }, [user, refreshContacts]);
 
   return (
     <ChatContext.Provider

@@ -1,5 +1,6 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
+from app.services.auth_service import AuthService
 import logging
 import json
 import asyncio
@@ -43,7 +44,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Create FastAPI app
+# ✅ CREATE APP FIRST - BEFORE USING @app.websocket
 app = FastAPI(
     title="Secure Messaging API",
     description="End-to-end encrypted messaging application",
@@ -73,11 +74,10 @@ async def startup():
     init_db()
     logger.info("✅ Database initialized")
     
-    # ✅ CRITICAL: Initialize and start email queue worker
+    # Initialize and start email queue worker
     EmailQueue.initialize()
     logger.info("✅ Email queue initialized")
     
-    # ✅ CRITICAL: Start background worker to process emails
     asyncio.create_task(EmailQueue.start_worker())
     logger.info("🚀 Email queue worker started")
     
@@ -119,83 +119,147 @@ async def health_check():
 async def favicon():
     return {"message": "No favicon"}
 
-# WebSocket endpoint
+# ✅ NOW DEFINE WEBSOCKET ENDPOINT (AFTER APP IS CREATED)
 @app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
+async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Query(...)):
     """
-    WebSocket endpoint for real-time messaging
-    user_id: The authenticated user's ID (should validate with JWT in production)
+    WebSocket endpoint for real-time messaging with JWT authentication
+    user_id: The authenticated user's ID
+    token: JWT authentication token passed as query parameter
     """
-    await manager.connect(websocket, user_id)
-    
     try:
-        # Send connection confirmation
-        await websocket.send_json({
-            "type": "connection_established",
-            "user_id": user_id,
-            "timestamp": json.dumps(datetime.now(), default=str)
-        })
+        # ✅ Verify JWT token
+        payload = AuthService.verify_token(token)
+        if payload.get("sub") != user_id:
+            logger.error(f"❌ Token mismatch for user {user_id}")
+            await websocket.close(code=1008)  # Policy violation
+            return
         
-        while True:
-            data = await websocket.receive_text()
-            try:
-                message_data = json.loads(data)
-                message_type = message_data.get("type")
-                payload = message_data.get("payload", {})
-                
-                logger.info(f"📨 WebSocket message from {user_id}: {message_type}")
-                
-                if message_type == "new_message":
-                    # Handle new message and forward to recipient
-                    recipient_id = payload.get("recipient_id")
-                    if recipient_id:
-                        await manager.send_personal_message(
-                            json.dumps({
-                                "type": "new_message",
-                                "sender_id": user_id,
-                                "payload": payload
-                            }),
-                            recipient_id
-                        )
-                        logger.info(f"📨 Message forwarded from {user_id} to {recipient_id}")
+        logger.info(f"✅ User {user_id} authenticated with JWT")
+        await manager.connect(websocket, user_id)
+        
+        try:
+            # Send connection confirmation
+            await websocket.send_json({
+                "type": "connection_established",
+                "user_id": user_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Notify others that user came online
+            await manager.broadcast(json.dumps({
+                "type": "user_online",
+                "user_id": user_id,
+                "timestamp": datetime.now().isoformat()
+            }))
+            
+            while True:
+                data = await websocket.receive_text()
+                try:
+                    message_data = json.loads(data)
+                    message_type = message_data.get("type")
+                    payload = message_data.get("payload", {})
                     
-                elif message_type == "typing":
-                    # Handle typing indicator
-                    recipient_id = payload.get("recipient_id")
-                    if recipient_id:
-                        await manager.send_personal_message(
-                            json.dumps({
-                                "type": "typing",
-                                "sender_id": user_id,
-                                "is_typing": payload.get("is_typing", False)
-                            }),
-                            recipient_id
-                        )
-                
-                elif message_type == "contact_added":
-                    # Notify the other user about the new contact
-                    contact_id = payload.get("contact_id")
-                    if contact_id:
-                        await manager.send_personal_message(
-                            json.dumps({
-                                "type": "contact_added",
-                                "user_id": user_id,
-                                "payload": payload
-                            }),
-                            contact_id
-                        )
-                        logger.info(f"👥 Contact added notification sent from {user_id} to {contact_id}")
+                    logger.info(f"📨 WebSocket message from {user_id}: {message_type}")
                     
-            except json.JSONDecodeError:
-                logger.error(f"❌ Invalid JSON received from WebSocket (user: {user_id})")
-            except Exception as e:
-                logger.error(f"❌ Error processing WebSocket message: {str(e)}")
-                
-    except WebSocketDisconnect:
-        manager.disconnect(user_id)
-        logger.info(f"❌ User {user_id} disconnected from WebSocket")
+                    if message_type == "message":
+                        # Handle real-time message sending
+                        recipient_id = payload.get("recipient_id")
+                        encrypted_content = payload.get("encrypted_content")
+                        message_id = payload.get("message_id")
+                        
+                        if recipient_id:
+                            # Forward message to recipient
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "new_message",
+                                    "sender_id": user_id,
+                                    "message_id": message_id,
+                                    "encrypted_content": encrypted_content,
+                                    "encrypted_session_key": payload.get("encrypted_session_key"),
+                                    "timestamp": datetime.now().isoformat()
+                                }),
+                                recipient_id
+                            )
+                            
+                            # Send confirmation to sender
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "message_sent",
+                                    "message_id": message_id,
+                                    "status": "sent",
+                                    "timestamp": datetime.now().isoformat()
+                                }),
+                                user_id
+                            )
+                            
+                            logger.info(f"📨 Message forwarded from {user_id} to {recipient_id}")
+                    
+                    elif message_type == "delivery_confirmation":
+                        # Handle delivery confirmation
+                        sender_id = payload.get("sender_id")
+                        message_id = payload.get("message_id")
+                        if sender_id:
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "message_delivered",
+                                    "message_id": message_id,
+                                    "timestamp": datetime.now().isoformat()
+                                }),
+                                sender_id
+                            )
+                    
+                    elif message_type == "typing":
+                        # Handle typing indicator
+                        recipient_id = payload.get("recipient_id")
+                        if recipient_id:
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "typing",
+                                    "sender_id": user_id,
+                                    "is_typing": payload.get("is_typing", False)
+                                }),
+                                recipient_id
+                            )
+                    
+                    elif message_type == "contact_added":
+                        # Notify the other user about the new contact
+                        contact_id = payload.get("contact_id")
+                        if contact_id:
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "contact_added",
+                                    "user_id": user_id,
+                                    "payload": payload
+                                }),
+                                contact_id
+                            )
+                            logger.info(f"👥 Contact added notification sent from {user_id} to {contact_id}")
+                        
+                except json.JSONDecodeError:
+                    logger.error(f"❌ Invalid JSON received from WebSocket (user: {user_id})")
+                except Exception as e:
+                    logger.error(f"❌ Error processing WebSocket message: {str(e)}")
+                    
+        except WebSocketDisconnect:
+            manager.disconnect(user_id)
+            logger.info(f"❌ User {user_id} disconnected from WebSocket")
+        except Exception as e:
+            logger.error(f"❌ WebSocket error for user {user_id}: {str(e)}")
+            manager.disconnect(user_id)
+    
     except Exception as e:
-        logger.error(f"❌ WebSocket error for user {user_id}: {str(e)}")
+        logger.error(f"❌ WebSocket authentication error: {str(e)}")
+        await websocket.close(code=1008)
+    
+    finally:
+        # Cleanup and notify others user went offline
         manager.disconnect(user_id)
+        await manager.broadcast(json.dumps({
+            "type": "user_offline",
+            "user_id": user_id,
+            "timestamp": datetime.now().isoformat()
+        }))
+        logger.info(f"❌ User {user_id} disconnected")
 
 logger.info(f"✅ FastAPI app initialized in {settings.ENVIRONMENT} mode")
