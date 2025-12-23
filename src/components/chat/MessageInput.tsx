@@ -84,9 +84,9 @@ export function MessageInput({ onSend, disabled, recipientId, onTyping }: Messag
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 border-t border-border bg-card/50">
-      <div className="flex items-end gap-2">
-        <Button type="button" variant="ghost" size="icon" className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+    <form onSubmit={handleSubmit} className="p-2 md:p-4 border-t border-border bg-card/50">
+      <div className="flex items-end gap-1 md:gap-2">
+        <Button type="button" variant="ghost" size="icon" className="hidden md:flex flex-shrink-0 text-muted-foreground hover:text-foreground">
           <Paperclip className="w-5 h-5" />
         </Button>
         
@@ -115,7 +115,7 @@ export function MessageInput({ onSend, disabled, recipientId, onTyping }: Messag
           </div>
         </div>
 
-        <Button type="button" variant="ghost" size="icon" className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+        <Button type="button" variant="ghost" size="icon" className="hidden md:flex flex-shrink-0 text-muted-foreground hover:text-foreground">
           <Smile className="w-5 h-5" />
         </Button>
 
@@ -130,7 +130,7 @@ export function MessageInput({ onSend, disabled, recipientId, onTyping }: Messag
         </Button>
       </div>
       
-      <p className="text-[10px] text-muted-foreground/60 mt-2 text-center flex items-center justify-center gap-1">
+      <p className="text-[10px] text-muted-foreground/60 mt-2 text-center flex items-center justify-center gap-1 hidden md:flex">
         <Lock className="w-3 h-3" />
         End-to-end encrypted with AES-256-GCM
       </p>

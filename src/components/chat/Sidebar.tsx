@@ -15,23 +15,27 @@ import { SendInvitation } from '@/components/SendInvitation';
 import { ManageUsers } from './ManageUsers';
 import { Badge } from '@/components/ui/badge';
 
-export function Sidebar() {
+interface SidebarProps {
+  onSelectContact?: () => void;
+}
+
+export function Sidebar({ onSelectContact }: SidebarProps) {
   const { user, logout } = useAuth();
   const [showInvitation, setShowInvitation] = useState(false);
   const [showManageUsers, setShowManageUsers] = useState(false);
   const isAdmin = user?.role === 'admin';
 
   return (
-    <div className="w-80 border-r border-border bg-card/30 flex flex-col h-full">
+    <div className="w-full border-r border-border bg-card/30 flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-primary" />
+      <div className="p-3 md:p-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Shield className="w-4 h-4 md:w-5 md:h-5 text-primary" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-display font-bold text-lg">QuantChat</h1>
+              <h1 className="font-display font-bold text-base md:text-lg">QuantChat</h1>
               {isAdmin && (
                 <Badge variant="default" className="h-5 px-1.5 text-xs">
                   <Crown className="w-3 h-3 mr-1" />
@@ -45,8 +49,8 @@ export function Sidebar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Settings className="w-5 h-5 text-muted-foreground" />
+            <Button variant="ghost" size="icon" className="w-8 h-8 md:w-10 md:h-10">
+              <Settings className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
