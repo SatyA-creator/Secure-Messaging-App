@@ -397,7 +397,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const messages = await response.json();
-          console.log(`\ud83d\udcdd Loaded ${messages.length} messages for contact ${contactId}`);
+          console.log(`📝 Loaded ${messages.length} messages for contact ${contactId}`);
           
           // Transform API messages to Message type
           const transformedMessages: Message[] = messages.map((msg: any) => ({
@@ -406,7 +406,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             recipientId: msg.recipient_id,
             encryptedContent: msg.encrypted_content,
             decryptedContent: msg.encrypted_content,
-            status: msg.is_read === 2 ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
+            status: msg.is_read === true ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
             createdAt: new Date(msg.created_at),
             isEncrypted: true,
           }));

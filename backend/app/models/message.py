@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, Index
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -18,9 +18,9 @@ class Message(Base):
     encrypted_content = Column(Text, nullable=False)
     encrypted_session_key = Column(Text, nullable=False)
     
-    # Status (0: sent, 1: delivered, 2: read)
-    is_read = Column(Integer, default=0)
-    is_deleted = Column(Integer, default=0)
+    # Status (Boolean: False=unread/not deleted, True=read/deleted)
+    is_read = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

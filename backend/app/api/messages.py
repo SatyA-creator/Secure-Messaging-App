@@ -95,7 +95,7 @@ async def mark_message_read(message_id: uuid.UUID, db: Session = Depends(get_db)
             detail="Message not found"
         )
     
-    message.is_read = 2  # Read status
+    message.is_read = True  # Mark as read
     db.commit()
     
     return {"status": "Message marked as read"}
