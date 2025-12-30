@@ -3,9 +3,15 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.models.contact import Contact
+from app.models.message import Message
+from app.models.invitation import Invitation
+from app.models.deleted_user import DeletedUser
 from typing import List
 from pydantic import BaseModel
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -99,8 +105,6 @@ async def add_contact_manually(request: AddContactRequest, db: Session = Depends
 @router.delete("/remove-contact/{admin_id}/{user_id}")
 async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: Session = Depends(get_db)):
     """Manually remove a user from contacts (admin only) - Deletes user account completely"""
-    from app.models.invitation import Invitation
-    from app.models.message import Message
     
     # Verify requester is admin
     admin = db.query(User).filter(User.id == admin_id).first()
@@ -117,6 +121,25 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    
+    # Store user details before deletion
+    deleted_email = removed_user.email
+    deleted_username = removed_user.username
+    
+    # Add to deleted users tracking table to prevent re-registration
+    try:
+        deleted_user_record = DeletedUser(
+            email=deleted_email,
+            username=deleted_username,
+            deleted_by_admin_id=admin_id
+        )
+        # Check if already tracked
+        existing_deleted = db.query(DeletedUser).filter(DeletedUser.email == deleted_email).first()
+        if not existing_deleted:
+            db.add(deleted_user_record)
+            logger.info(f"Added {deleted_email} to deleted_users tracking table")
+    except Exception as e:
+        logger.error(f"Error adding to deleted_users: {str(e)}")
     
     # Delete all messages sent by or to this user
     db.query(Message).filter(
@@ -138,4 +161,6 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
     
     db.commit()
     
-    return {"status": "success", "message": "User account and all related data removed successfully"}
+    logger.info(f"Admin {admin_id} removed user {user_id} ({deleted_email}) from system")
+    
+    return {"status": "success", "message": "User account and all related data removed successfully", "deleted_email": deleted_email}

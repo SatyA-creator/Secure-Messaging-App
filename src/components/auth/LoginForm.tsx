@@ -79,9 +79,12 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           if (acceptResponse.ok) {
             toast({
               title: "Invitation accepted!",
-              description: `You and ${inviterName} are now connected.`,
+              description: `You and ${inviterName} are now connected. Redirecting...`,
             });
-            setTimeout(() => navigate('/'), 1500);
+            // Force a reload to ensure ChatContext fetches the new contact
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1500);
             return;
           }
         } catch (error) {
@@ -93,6 +96,9 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         title: "Welcome back!",
         description: "You've been securely authenticated.",
       });
+      
+      // Navigate after successful login
+      setTimeout(() => navigate('/'), 1000);
     } catch (error) {
       toast({
         title: "Authentication failed",

@@ -44,6 +44,15 @@ def get_current_user(user_id: str = Depends(verify_token), db: Session = Depends
 async def register(user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user and return access token"""
     try:
+        # Check if email was previously deleted
+        from app.models.deleted_user import DeletedUser
+        deleted_user = db.query(DeletedUser).filter(DeletedUser.email == user.email).first()
+        if deleted_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This email was previously removed by an administrator and cannot be re-registered"
+            )
+        
         # Check if user already exists
         existing_user = db.query(User).filter(
             (User.email == user.email) | (User.username == user.username)
