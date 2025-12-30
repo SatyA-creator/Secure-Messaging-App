@@ -67,9 +67,9 @@ class InvitationService:
             ).first()
             if existing_contact:
                 raise ValueError("User already registered and is already your contact.")
-            # If user exists but is not a contact, we need to allow re-invitation
-            # but user should use "Add" button instead
-            raise ValueError("User already registered. Use the 'Add' button in Manage Users to add them as a contact.")
+            # If user exists but is not a contact, allow re-invitation
+            # The invitation will re-add them as a contact when accepted
+            logger.info(f"Creating invitation for existing user {invitee_email} to rejoin as contact")
         
         # Check if invitation already sent and not expired
         existing_invitation = db.query(Invitation).filter(
@@ -179,6 +179,7 @@ class InvitationService:
     ) -> Invitation:
         """
         Accept invitation and create bidirectional contact connection
+        Handles both new users registering and existing users rejoining
         """
         invitation = db.query(Invitation).filter(
             Invitation.invitation_token == token
@@ -198,7 +199,11 @@ class InvitationService:
                 logger.info(f"✅ Invitation already processed - contacts exist")
                 return invitation
             else:
-                raise ValueError("Invitation already accepted")
+                # If invitation was accepted before but contacts don't exist,
+                # reset it and continue (handles re-invitation after removal)
+                logger.info(f"Resetting previously accepted invitation for re-joining")
+                invitation.is_accepted = False
+                invitation.accepted_at = None
         
         if invitation.expires_at < datetime.utcnow():
             raise ValueError("Invitation expired")
@@ -220,6 +225,7 @@ class InvitationService:
                 contact_id=new_user_id
             )
             db.add(contact1)
+            logger.info(f"Created contact: {invitation.inviter_id} -> {new_user_id}")
         
         if not existing_contact2:
             contact2 = Contact(
@@ -227,6 +233,7 @@ class InvitationService:
                 contact_id=invitation.inviter_id
             )
             db.add(contact2)
+            logger.info(f"Created contact: {new_user_id} -> {invitation.inviter_id}")
         
         # Mark as accepted
         invitation.is_accepted = True

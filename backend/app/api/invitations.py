@@ -49,13 +49,27 @@ async def send_invitation(request: SendInvitationRequest, db: Session = Depends(
 @router.get("/verify/{token}")
 async def verify_invitation(token: str, db: Session = Depends(get_db)):
     """Verify invitation token and get inviter details"""
+    from app.models.contact import Contact
+    
     invitation = db.query(Invitation).filter(Invitation.invitation_token == token).first()
     
     if not invitation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid invitation")
     
+    # Check if invitation was accepted but contacts no longer exist (re-invitation after removal)
     if invitation.is_accepted:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation already accepted")
+        # Check if contacts still exist
+        existing_user = db.query(User).filter(User.email == invitation.invitee_email).first()
+        if existing_user:
+            existing_contact = db.query(Contact).filter(
+                Contact.user_id == invitation.inviter_id,
+                Contact.contact_id == existing_user.id
+            ).first()
+            if existing_contact:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation already accepted")
+            # If no contact exists, allow re-acceptance (user was removed and is rejoining)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation already accepted")
     
     if invitation.expires_at < datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation expired")
