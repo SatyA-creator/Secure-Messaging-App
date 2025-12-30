@@ -99,6 +99,7 @@ async def add_contact_manually(request: AddContactRequest, db: Session = Depends
 @router.delete("/remove-contact/{admin_id}/{user_id}")
 async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: Session = Depends(get_db)):
     """Manually remove a user from contacts (admin only)"""
+    from app.models.invitation import Invitation
     
     # Verify requester is admin
     admin = db.query(User).filter(User.id == admin_id).first()
@@ -113,6 +114,21 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
         ((Contact.user_id == admin_id) & (Contact.contact_id == user_id)) |
         ((Contact.user_id == user_id) & (Contact.contact_id == admin_id))
     ).delete()
+    
+    # Also reset any accepted invitations so user can be re-invited
+    # Get the removed user's email
+    removed_user = db.query(User).filter(User.id == user_id).first()
+    if removed_user:
+        # Mark all accepted invitations from this admin to this user as not accepted
+        # This allows sending new invitations to them
+        db.query(Invitation).filter(
+            Invitation.inviter_id == admin_id,
+            Invitation.invitee_email == removed_user.email,
+            Invitation.is_accepted == True
+        ).update({
+            "is_accepted": False,
+            "accepted_at": None
+        }, synchronize_session=False)
     
     db.commit()
     

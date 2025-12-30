@@ -57,10 +57,19 @@ class InvitationService:
         This is synchronous but returns immediately (email is queued)
         """
         from app.services.email_queue import EmailQueue
-        # Check if user already exists
+        # Check if user already exists AND is already a contact
         existing_user = db.query(User).filter(User.email == invitee_email).first()
         if existing_user:
-            raise ValueError("User already registered. Add them directly as a contact.")
+            # Check if they're already a contact
+            existing_contact = db.query(Contact).filter(
+                Contact.user_id == inviter_id,
+                Contact.contact_id == existing_user.id
+            ).first()
+            if existing_contact:
+                raise ValueError("User already registered and is already your contact.")
+            # If user exists but is not a contact, we need to allow re-invitation
+            # but user should use "Add" button instead
+            raise ValueError("User already registered. Use the 'Add' button in Manage Users to add them as a contact.")
         
         # Check if invitation already sent and not expired
         existing_invitation = db.query(Invitation).filter(
