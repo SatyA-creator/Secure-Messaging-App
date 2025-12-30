@@ -52,32 +52,43 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                 recipient_id = data.get("recipient_id")
                 encrypted_content = data.get("encrypted_content")
                 encrypted_session_key = data.get("encrypted_session_key")
+                message_id = data.get("message_id")  # Use frontend message ID if provided
                 
                 # Save message to database
-                message = MessageService.send_message(
-                    db=db,
-                    sender_id=user_id,
-                    recipient_id=recipient_id,
+                from app.models.message import Message
+                from uuid import UUID
+                import uuid as uuid_module
+                
+                db_message = Message(
+                    id=UUID(message_id) if message_id else uuid_module.uuid4(),
+                    sender_id=UUID(user_id),
+                    recipient_id=UUID(recipient_id),
                     encrypted_content=encrypted_content,
                     encrypted_session_key=encrypted_session_key
                 )
+                db.add(db_message)
+                db.commit()
+                db.refresh(db_message)
+                
+                # Use database timestamp for consistency
+                timestamp = db_message.created_at.isoformat()
                 
                 # Send to recipient if online
                 await manager.send_personal_message(recipient_id, {
                     "type": "new_message",
-                    "message_id": str(message.id),
+                    "message_id": str(db_message.id),
                     "sender_id": user_id,
                     "encrypted_content": encrypted_content,
                     "encrypted_session_key": encrypted_session_key,
-                    "timestamp": message.created_at.isoformat()
+                    "timestamp": timestamp
                 })
                 
-                # Send confirmation to sender
+                # Send confirmation to sender with same timestamp
                 await manager.send_personal_message(user_id, {
                     "type": "message_sent",
-                    "message_id": str(message.id),
+                    "message_id": str(db_message.id),
                     "status": "sent",
-                    "timestamp": message.created_at.isoformat()
+                    "timestamp": timestamp
                 })
             
             elif data.get("type") == "delivery_confirmation":

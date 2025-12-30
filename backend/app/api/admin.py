@@ -98,8 +98,9 @@ async def add_contact_manually(request: AddContactRequest, db: Session = Depends
 
 @router.delete("/remove-contact/{admin_id}/{user_id}")
 async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Manually remove a user from contacts (admin only)"""
+    """Manually remove a user from contacts (admin only) - Deletes user account completely"""
     from app.models.invitation import Invitation
+    from app.models.message import Message
     
     # Verify requester is admin
     admin = db.query(User).filter(User.id == admin_id).first()
@@ -109,27 +110,32 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
             detail="Only admins can remove contacts"
         )
     
-    # Remove bidirectional contacts
-    db.query(Contact).filter(
-        ((Contact.user_id == admin_id) & (Contact.contact_id == user_id)) |
-        ((Contact.user_id == user_id) & (Contact.contact_id == admin_id))
-    ).delete()
-    
-    # Also reset any accepted invitations so user can be re-invited
-    # Get the removed user's email
+    # Get the user to be removed
     removed_user = db.query(User).filter(User.id == user_id).first()
-    if removed_user:
-        # Mark all accepted invitations from this admin to this user as not accepted
-        # This allows sending new invitations to them
-        db.query(Invitation).filter(
-            Invitation.inviter_id == admin_id,
-            Invitation.invitee_email == removed_user.email,
-            Invitation.is_accepted == True
-        ).update({
-            "is_accepted": False,
-            "accepted_at": None
-        }, synchronize_session=False)
+    if not removed_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Delete all messages sent by or to this user
+    db.query(Message).filter(
+        (Message.sender_id == user_id) | (Message.recipient_id == user_id)
+    ).delete(synchronize_session=False)
+    
+    # Delete all contacts (bidirectional)
+    db.query(Contact).filter(
+        (Contact.user_id == user_id) | (Contact.contact_id == user_id)
+    ).delete(synchronize_session=False)
+    
+    # Delete all invitations related to this user
+    db.query(Invitation).filter(
+        (Invitation.inviter_id == user_id) | (Invitation.invitee_email == removed_user.email)
+    ).delete(synchronize_session=False)
+    
+    # Delete the user account itself
+    db.delete(removed_user)
     
     db.commit()
     
-    return {"status": "success", "message": "Contact removed successfully"}
+    return {"status": "success", "message": "User account and all related data removed successfully"}

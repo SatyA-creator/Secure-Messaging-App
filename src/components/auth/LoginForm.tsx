@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Shield, Mail, Lock, ArrowRight, Loader2, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -14,11 +15,80 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const [password, setPassword] = useState('');
   const { login, isLoading } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
+  const invitationToken = searchParams.get('invitation');
+  const [inviterName, setInviterName] = useState('');
+
+  // Verify invitation token on mount
+  useEffect(() => {
+    const verifyToken = async (token: string) => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api/v1';
+        const response = await fetch(`${API_URL}/invitations/verify/${token}`);
+        
+        if (!response.ok) {
+          toast({
+            title: "Invalid invitation",
+            description: "This invitation link is invalid or expired.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const data = await response.json();
+        setInviterName(data.inviter_name);
+        setEmail(data.invitee_email);
+        
+        toast({
+          title: "Invitation verified!",
+          description: `${data.inviter_name} invited you. Please sign in to accept.`,
+        });
+      } catch (error) {
+        console.error('Failed to verify invitation:', error);
+      }
+    };
+
+    if (invitationToken) {
+      verifyToken(invitationToken);
+    }
+  }, [invitationToken, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(email, password);
+      const result = await login(email, password);
+      
+      // Accept invitation if token exists
+      if (invitationToken && result?.user?.id) {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api/v1';
+          const acceptResponse = await fetch(`${API_URL}/invitations/accept`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}` 
+            },
+            body: JSON.stringify({
+              token: invitationToken,
+              new_user_id: result.user.id
+            })
+          });
+
+          if (acceptResponse.ok) {
+            toast({
+              title: "Invitation accepted!",
+              description: `You and ${inviterName} are now connected.`,
+            });
+            setTimeout(() => navigate('/'), 1500);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to accept invitation:', error);
+        }
+      }
+      
       toast({
         title: "Welcome back!",
         description: "You've been securely authenticated.",
@@ -42,6 +112,15 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         <p className="text-muted-foreground">
           Sign in to access your encrypted conversations
         </p>
+        
+        {inviterName && (
+          <div className="mt-4 flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
+            <UserPlus className="w-5 h-5 text-primary flex-shrink-0" />
+            <p className="text-sm text-primary font-medium">
+              Invited by <strong>{inviterName}</strong> - Sign in to accept
+            </p>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -56,7 +135,13 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               onChange={e => setEmail(e.target.value)}
               className="pl-11"
               required
+              disabled={!!invitationToken}
             />
+            {invitationToken && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Email pre-filled from invitation
+              </p>
+            )}
           </div>
         </div>
 

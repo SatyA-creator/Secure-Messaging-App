@@ -216,17 +216,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // ✅ Listen for message_sent confirmation
       const handleMessageSent = (data: any) => {
         console.log('✅ Message sent confirmation:', data);
-        
         const messageId = data.message_id;
+        const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+        
         if (messageId) {
-          // Update message status to 'sent'
+          // Update message status to 'sent' and use server timestamp
           setConversations(prev => {
             const updated = { ...prev };
             Object.keys(updated).forEach(contactId => {
               updated[contactId] = {
                 ...updated[contactId],
                 messages: updated[contactId].messages.map(m =>
-                  m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m
+                  m.id === messageId ? { 
+                    ...m, 
+                    status: 'sent' as MessageStatus,
+                    createdAt: serverTimestamp  // Use server timestamp for consistency
+                  } : m
                 ),
               };
             });
@@ -303,6 +308,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const handleMessageRead = (data: any) => {
         console.log('✅ Message read confirmation:', data);
         const messageId = data.message_id;
+        const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+        
         if (messageId) {
           setConversations(prev => {
             const updated = { ...prev };
@@ -310,7 +317,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               updated[contactId] = {
                 ...updated[contactId],
                 messages: updated[contactId].messages.map(m =>
-                  m.id === messageId ? { ...m, status: 'read' as MessageStatus } : m
+                  m.id === messageId ? { 
+                    ...m, 
+                    status: 'sent' as MessageStatus,
+                    createdAt: serverTimestamp  // Use server timestamp for consistency
+                  } : m
                 ),
               };
             });

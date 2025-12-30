@@ -124,11 +124,29 @@ const handleSubmit = async (e: React.FormEvent) => {
     setTimeout(() => navigate('/'), 1500);
     
   } catch (error) {
-    toast({
-      title: "Registration failed",
-      description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
-      variant: "destructive",
-    });
+    const errorMessage = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+    
+    // Check if error is due to user already existing
+    if (errorMessage.toLowerCase().includes('already exist') || errorMessage.toLowerCase().includes('email already registered')) {
+      toast({
+        title: "Account already exists",
+        description: invitationToken 
+          ? "This email is already registered. Please sign in to accept the invitation."
+          : "This email is already registered. Please sign in instead.",
+        variant: "destructive",
+      });
+      
+      // Auto-switch to login if there's an invitation token
+      if (invitationToken) {
+        setTimeout(() => onSwitchToLogin(), 2000);
+      }
+    } else {
+      toast({
+        title: "Registration failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   }
 };
 
