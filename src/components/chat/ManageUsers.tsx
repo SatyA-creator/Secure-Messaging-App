@@ -122,8 +122,8 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
       }
 
       toast({
-        title: "Contact removed",
-        description: "User removed from your contacts",
+        title: "User deleted",
+        description: "User account and all data permanently deleted. They can re-register if needed.",
       });
 
       // Refresh the list and contact list in sidebar
@@ -199,7 +199,7 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
                   <div className="ml-3">
                     {regUser.is_contact ? (
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
                         onClick={() => handleRemoveContact(regUser.id)}
                         disabled={actionLoading === regUser.id}
@@ -209,7 +209,7 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
                         ) : (
                           <>
                             <UserMinus className="w-4 h-4 mr-1" />
-                            Remove
+                            Delete User
                           </>
                         )}
                       </Button>

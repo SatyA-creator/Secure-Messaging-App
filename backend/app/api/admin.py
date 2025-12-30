@@ -122,24 +122,9 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
             detail="User not found"
         )
     
-    # Store user details before deletion
+    # Store user details for logging
     deleted_email = removed_user.email
     deleted_username = removed_user.username
-    
-    # Add to deleted users tracking table to prevent re-registration
-    try:
-        deleted_user_record = DeletedUser(
-            email=deleted_email,
-            username=deleted_username,
-            deleted_by_admin_id=admin_id
-        )
-        # Check if already tracked
-        existing_deleted = db.query(DeletedUser).filter(DeletedUser.email == deleted_email).first()
-        if not existing_deleted:
-            db.add(deleted_user_record)
-            logger.info(f"Added {deleted_email} to deleted_users tracking table")
-    except Exception as e:
-        logger.error(f"Error adding to deleted_users: {str(e)}")
     
     # Delete all messages sent by or to this user
     db.query(Message).filter(
