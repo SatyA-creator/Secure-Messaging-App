@@ -176,27 +176,36 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 from app.database import get_db
                                 from uuid import UUID
                                 import uuid as uuid_module
+                                import traceback
                                 
                                 # Get database session
                                 db = next(get_db())
                                 
-                                # Create and save message
-                                db_message = Message(
-                                    id=UUID(message_id) if message_id else uuid_module.uuid4(),
-                                    sender_id=UUID(user_id),
-                                    recipient_id=UUID(recipient_id),
-                                    encrypted_content=encrypted_content,
-                                    encrypted_session_key=encrypted_session_key or "default-key"
-                                )
-                                db.add(db_message)
-                                db.commit()
-                                db.refresh(db_message)
-                                
-                                # Use database timestamp for consistency
-                                timestamp = db_message.created_at.isoformat()
-                                message_id = str(db_message.id)
-                                
-                                logger.info(f"💾 Message {message_id} saved to database")
+                                try:
+                                    # Create and save message
+                                    db_message = Message(
+                                        id=UUID(message_id) if message_id else uuid_module.uuid4(),
+                                        sender_id=UUID(user_id),
+                                        recipient_id=UUID(recipient_id),
+                                        encrypted_content=str(encrypted_content),
+                                        encrypted_session_key=str(encrypted_session_key or "default-key")
+                                    )
+                                    db.add(db_message)
+                                    db.commit()
+                                    db.refresh(db_message)
+                                    
+                                    # Use database timestamp for consistency
+                                    timestamp = db_message.created_at.isoformat()
+                                    message_id = str(db_message.id)
+                                    
+                                    logger.info(f"💾 Message {message_id} saved to database")
+                                except Exception as inner_error:
+                                    db.rollback()
+                                    logger.error(f"❌ Database error: {inner_error}")
+                                    logger.error(f"Traceback: {traceback.format_exc()}")
+                                    raise
+                                finally:
+                                    db.close()
                             except Exception as db_error:
                                 logger.error(f"❌ Failed to save message to database: {db_error}")
                                 timestamp = datetime.now().isoformat()
