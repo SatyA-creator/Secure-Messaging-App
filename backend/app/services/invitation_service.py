@@ -240,6 +240,34 @@ class InvitationService:
         invitation.accepted_at = datetime.utcnow()
         
         db.commit()
+        db.refresh(invitation)
+        
+        # ✅ CRITICAL FIX: Notify inviter via WebSocket that new user joined
+        try:
+            from app.websocket_manager import manager
+            
+            # Get new user details
+            new_user = db.query(User).filter(User.id == new_user_id).first()
+            if new_user:
+                # Send notification to inviter (admin) that new user joined
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(
+                        manager.send_personal_message(str(invitation.inviter_id), {
+                            "type": "contact_added",
+                            "contact_id": str(new_user_id),
+                            "user_id": str(new_user_id),
+                            "username": new_user.username,
+                            "email": new_user.email,
+                            "full_name": new_user.full_name or new_user.username,
+                            "is_online": False,
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                    )
+                logger.info(f"📢 Notified inviter {invitation.inviter_id} about new user {new_user_id}")
+        except Exception as e:
+            logger.warning(f"Could not send WebSocket notification: {e}")
         
         logger.info(f"✅ Invitation {token} accepted - contacts created")
         return invitation

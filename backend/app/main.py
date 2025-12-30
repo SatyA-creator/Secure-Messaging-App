@@ -167,8 +167,40 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                         recipient_id = payload.get("recipient_id")
                         encrypted_content = payload.get("encrypted_content")
                         message_id = payload.get("message_id")
+                        encrypted_session_key = payload.get("encrypted_session_key")
                         
                         if recipient_id:
+                            # ✅ CRITICAL FIX: Save message to database
+                            try:
+                                from app.models.message import Message
+                                from app.database import get_db
+                                from uuid import UUID
+                                import uuid as uuid_module
+                                
+                                # Get database session
+                                db = next(get_db())
+                                
+                                # Create and save message
+                                db_message = Message(
+                                    id=UUID(message_id) if message_id else uuid_module.uuid4(),
+                                    sender_id=UUID(user_id),
+                                    recipient_id=UUID(recipient_id),
+                                    encrypted_content=encrypted_content,
+                                    encrypted_session_key=encrypted_session_key or "default-key"
+                                )
+                                db.add(db_message)
+                                db.commit()
+                                db.refresh(db_message)
+                                
+                                # Use database timestamp for consistency
+                                timestamp = db_message.created_at.isoformat()
+                                message_id = str(db_message.id)
+                                
+                                logger.info(f"💾 Message {message_id} saved to database")
+                            except Exception as db_error:
+                                logger.error(f"❌ Failed to save message to database: {db_error}")
+                                timestamp = datetime.now().isoformat()
+                            
                             # Forward message to recipient
                             await manager.send_personal_message(
                                 json.dumps({
@@ -176,8 +208,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     "sender_id": user_id,
                                     "message_id": message_id,
                                     "encrypted_content": encrypted_content,
-                                    "encrypted_session_key": payload.get("encrypted_session_key"),
-                                    "timestamp": datetime.now().isoformat()
+                                    "encrypted_session_key": encrypted_session_key,
+                                    "timestamp": timestamp
                                 }),
                                 recipient_id
                             )
@@ -188,7 +220,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     "type": "message_sent",
                                     "message_id": message_id,
                                     "status": "sent",
-                                    "timestamp": datetime.now().isoformat()
+                                    "timestamp": timestamp
                                 }),
                                 user_id
                             )
@@ -223,18 +255,26 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                             )
                     
                     elif message_type == "contact_added":
-                        # Notify the other user about the new contact
+                        # Notify the inviter (admin) about the new contact
+                        inviter_id = payload.get("inviter_id") 
                         contact_id = payload.get("contact_id")
-                        if contact_id:
+                        
+                        if inviter_id:
+                            # Send notification to inviter (usually the admin)
                             await manager.send_personal_message(
                                 json.dumps({
                                     "type": "contact_added",
-                                    "user_id": user_id,
-                                    "payload": payload
+                                    "contact_id": contact_id,
+                                    "user_id": contact_id,
+                                    "username": payload.get("username"),
+                                    "email": payload.get("email"),
+                                    "full_name": payload.get("full_name"),
+                                    "is_online": False,
+                                    "timestamp": datetime.now().isoformat()
                                 }),
-                                contact_id
+                                inviter_id
                             )
-                            logger.info(f"👥 Contact added notification sent from {user_id} to {contact_id}")
+                            logger.info(f"👥 Contact added notification sent to {inviter_id} about user {contact_id}")
                         
                 except json.JSONDecodeError:
                     logger.error(f"❌ Invalid JSON received from WebSocket (user: {user_id})")

@@ -62,6 +62,25 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     fetchUsers();
+    
+    // ✅ CRITICAL FIX: Set up WebSocket listener for new users
+    const handleContactAdded = (data: any) => {
+      console.log('👥 New user added via WebSocket:', data);
+      // Refresh the user list when a new contact is added
+      fetchUsers();
+    };
+    
+    // Listen for contact_added events
+    import('@/lib/websocket').then(module => {
+      const ws = module.default.getInstance();
+      ws.on('contact_added', handleContactAdded);
+      
+      // Cleanup
+      return () => {
+        ws.off('contact_added', handleContactAdded);
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleAddContact = async (userId: string) => {

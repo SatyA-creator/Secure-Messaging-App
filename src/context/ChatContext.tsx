@@ -133,7 +133,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const messageId = data.message_id || data.messageId || crypto.randomUUID();
         
         if (senderId) {
-          // Add message to conversation
+          // Add message to conversation - avoid duplicates
           setConversations(prev => {
             const existingConversation = prev[senderId] || { 
               contactId: senderId, 
@@ -141,6 +141,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               isLoading: false, 
               hasMore: false 
             };
+            
+            // Check if message already exists
+            const messageExists = existingConversation.messages.some(m => m.id === messageId);
+            if (messageExists) {
+              console.log(`⚠️ Message ${messageId} already exists, skipping duplicate`);
+              return prev;
+            }
             
             return {
               ...prev,
@@ -223,18 +230,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           // Update message status to 'sent' and use server timestamp
           setConversations(prev => {
             const updated = { ...prev };
+            let messageFound = false;
             Object.keys(updated).forEach(contactId => {
-              updated[contactId] = {
-                ...updated[contactId],
-                messages: updated[contactId].messages.map(m =>
-                  m.id === messageId ? { 
-                    ...m, 
-                    status: 'sent' as MessageStatus,
-                    createdAt: serverTimestamp  // Use server timestamp for consistency
-                  } : m
-                ),
-              };
+              const messageIndex = updated[contactId].messages.findIndex(m => m.id === messageId);
+              if (messageIndex >= 0) {
+                messageFound = true;
+                updated[contactId] = {
+                  ...updated[contactId],
+                  messages: updated[contactId].messages.map(m =>
+                    m.id === messageId ? { 
+                      ...m, 
+                      status: 'sent' as MessageStatus,
+                      createdAt: serverTimestamp  // Use server timestamp for consistency
+                    } : m
+                  ),
+                };
+              }
             });
+            if (messageFound) {
+              console.log(`✅ Updated message ${messageId} status to 'sent'`);
+            }
             return updated;
           });
         }
@@ -435,7 +450,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       recipientId,
       encryptedContent: `encrypted:${content}`,
       decryptedContent: content,
-      status: isRecipientOnline ? 'sending' : 'sent',
+      status: 'sending' as MessageStatus,
       createdAt: new Date(),
       isEncrypted: true,
     };
@@ -479,7 +494,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       throw error;
     }
-  }, [user]);
+  }, [user, contacts]);
 
   const markAsRead = useCallback((contactId: string) => {
     setContacts(prev =>

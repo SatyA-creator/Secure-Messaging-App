@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, Query, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database import getdb
+from app.database import get_db
 from app.websocket_manager import manager
 from app.services.auth_service import AuthService
 from app.services.message_service import MessageService
@@ -8,9 +8,9 @@ from app.middleware.auth import get_current_user
 import json
 from datetime import datetime
 
-router = APIRouter(prefix="/api/ws", tags=["websocket"])
+router = APIRouter(tags=["websocket"])
 
-@router.websocket("/chat/{user_id}")
+@router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Query(...)):
     """
     WebSocket endpoint for real-time messaging
@@ -31,7 +31,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             return
         
         # Get database session
-        db = next(getdb())
+        db = next(get_db())
         
         # Connect user
         await manager.connect(user_id, websocket)
