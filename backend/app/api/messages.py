@@ -45,10 +45,31 @@ async def send_message(message: MessageCreate, db: Session = Depends(get_db)):
 @router.get("/conversation/{other_user_id}", response_model=List[MessageResponse])
 async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID, db: Session = Depends(get_db)):
     """Get conversation between current user and another user"""
+    print(f"\n🔍 Querying conversation between {current_user_id} and {other_user_id}")
+    
+    # Debug: Check total messages in database
+    total_messages = db.query(Message).count()
+    print(f"📊 Total messages in database: {total_messages}")
+    
+    # Debug: Check messages sent by current user
+    sent_by_current = db.query(Message).filter(Message.sender_id == current_user_id).count()
+    print(f"📤 Messages sent by {current_user_id}: {sent_by_current}")
+    
+    # Debug: Check messages received by current user
+    received_by_current = db.query(Message).filter(Message.recipient_id == current_user_id).count()
+    print(f"📥 Messages received by {current_user_id}: {received_by_current}")
+    
     messages = db.query(Message).filter(
         ((Message.sender_id == current_user_id) & (Message.recipient_id == other_user_id)) |
         ((Message.sender_id == other_user_id) & (Message.recipient_id == current_user_id))
     ).order_by(Message.created_at).all()
+    
+    print(f"💬 Found {len(messages)} messages in conversation")
+    
+    # Debug: Print first few messages if they exist
+    if messages:
+        for i, msg in enumerate(messages[:3]):
+            print(f"  Message {i+1}: sender={msg.sender_id}, recipient={msg.recipient_id}, content_length={len(msg.encrypted_content) if msg.encrypted_content else 0}")
     
     return [
         MessageResponse(
