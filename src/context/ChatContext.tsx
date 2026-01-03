@@ -131,6 +131,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         
         const senderId = data.sender_id || data.senderId;
         const messageId = data.message_id || data.messageId || crypto.randomUUID();
+        const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
         
         if (senderId) {
           // Add message to conversation - avoid duplicates
@@ -160,7 +161,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   encryptedContent: data.encrypted_content,
                   decryptedContent: data.encrypted_content, // Will decrypt on display
                   status: 'delivered' as MessageStatus,
-                  createdAt: new Date(data.timestamp || Date.now()),
+                  createdAt: serverTimestamp,  // Use server timestamp for consistency
                   isEncrypted: true,
                 }],
               },
@@ -323,7 +324,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const handleMessageRead = (data: any) => {
         console.log('✅ Message read confirmation:', data);
         const messageId = data.message_id;
-        const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
         
         if (messageId) {
           setConversations(prev => {
@@ -334,8 +334,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 messages: updated[contactId].messages.map(m =>
                   m.id === messageId ? { 
                     ...m, 
-                    status: 'sent' as MessageStatus,
-                    createdAt: serverTimestamp  // Use server timestamp for consistency
+                    status: 'read' as MessageStatus  // Update to 'read' status, don't change timestamp
                   } : m
                 ),
               };
@@ -444,6 +443,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const isRecipientOnline = recipient?.isOnline || false;
 
     const messageId = crypto.randomUUID();
+    const tempTimestamp = new Date(); // Temporary timestamp, will be replaced by server timestamp
     const newMessage: Message = {
       id: messageId,
       senderId: user.id,
@@ -451,7 +451,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       encryptedContent: `encrypted:${content}`,
       decryptedContent: content,
       status: 'sending' as MessageStatus,
-      createdAt: new Date(),
+      createdAt: tempTimestamp,
       isEncrypted: true,
     };
 
