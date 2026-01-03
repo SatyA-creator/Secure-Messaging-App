@@ -1,5 +1,5 @@
 # app/models/group.py
-from sqlalchemy import Column, String, UUID, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, UUID, DateTime, Boolean, ForeignKey, Text, LargeBinary
 from datetime import datetime
 import uuid
 

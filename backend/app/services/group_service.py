@@ -151,8 +151,57 @@ class GroupService:
         
         return members
     
+    @staticmethod    def get_group_members_with_details(
+        db: Session,
+        group_id: UUID
+    ) -> list:
+        \"\"\"Get all members of a group with user details\"\"\"
+        members = db.query(GroupMember, User).join(
+            User, GroupMember.user_id == User.id
+        ).filter(
+            GroupMember.group_id == group_id
+        ).all()
+        
+        return [
+            {
+                \"id\": str(member.User.id),
+                \"user_id\": str(member.User.id),
+                \"username\": member.User.username,
+                \"email\": member.User.email,
+                \"full_name\": member.User.full_name,
+                \"public_key\": member.User.public_key,
+                \"avatar_url\": member.User.avatar_url,
+                \"role\": member.GroupMember.role,
+                \"joined_at\": member.GroupMember.joined_at
+            } for member in members
+        ]
+    
     @staticmethod
-    def send_group_message(
+    def get_user_groups(
+        db: Session,
+        user_id: UUID
+    ) -> list:
+        \"\"\"Get all groups a user is a member of\"\"\"
+        groups = db.query(Group, GroupMember).join(
+            GroupMember, Group.id == GroupMember.group_id
+        ).filter(
+            GroupMember.user_id == user_id
+        ).all()
+        
+        return [
+            {
+                \"id\": str(group.Group.id),
+                \"name\": group.Group.name,
+                \"description\": group.Group.description,
+                \"avatar_url\": group.Group.avatar_url,
+                \"admin_id\": str(group.Group.admin_id),
+                \"is_encrypted\": group.Group.is_encrypted,
+                \"role\": group.GroupMember.role,
+                \"created_at\": group.Group.created_at
+            } for group in groups
+        ]
+    
+    @staticmethod    def send_group_message(
         db: Session,
         group_id: UUID,
         sender_id: UUID,

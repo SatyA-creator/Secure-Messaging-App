@@ -78,19 +78,19 @@ async def get_group_members(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all members of a group"""
-    members = GroupService.get_group_members(db, group_id=group_id)
+    """Get all members of a group with user details"""
+    members = GroupService.get_group_members_with_details(db, group_id=group_id)
     
-    return {
-        "group_id": str(group_id),
-        "members": [
-            {
-                "user_id": str(m.user_id),
-                "role": m.role,
-                "joined_at": m.joined_at
-            } for m in members
-        ]
-    }
+    return members
+
+@router.get("/")
+async def get_user_groups(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all groups the current user is a member of"""
+    groups = GroupService.get_user_groups(db, user_id=current_user.id)
+    return groups
 
 @router.get("/{group_id}/messages")
 async def get_group_messages(

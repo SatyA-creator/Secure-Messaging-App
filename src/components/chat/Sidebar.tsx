@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { ContactList } from './ContactList';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -13,7 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SendInvitation } from '@/components/SendInvitation';
 import { ManageUsers } from './ManageUsers';
+import { CreateGroupDialog } from './CreateGroupDialog';
 import { Badge } from '@/components/ui/badge';
+import api from '@/config/api';
 
 interface SidebarProps {
   onSelectContact?: () => void;
@@ -23,7 +25,26 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const { user, logout } = useAuth();
   const [showInvitation, setShowInvitation] = useState(false);
   const [showManageUsers, setShowManageUsers] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [groups, setGroups] = useState<any[]>([]);
   const isAdmin = user?.role === 'admin';
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const loadGroups = async () => {
+    try {
+      const response = await api.get('/v1/groups');
+      setGroups(response.data || []);
+    } catch (err) {
+      console.error('Error loading groups:', err);
+    }
+  };
+
+  const handleGroupCreated = (newGroup: any) => {
+    setGroups(prev => [...prev, newGroup]);
+  };
 
   return (
     <div className="w-full border-r border-border bg-card/30 flex flex-col h-full">
@@ -114,6 +135,50 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         </div>
       )}
 
+      {/* Create Group Button */}
+      <div className="p-4 border-b border-border">
+        <Button 
+          onClick={() => setShowCreateGroup(true)} 
+          className="w-full"
+          size="sm"
+          variant="secondary"
+        >
+          <Users className="w-4 h-4 mr-2" />
+          Create Group Chat
+        </Button>
+      </div>
+
+      {/* Groups List */}
+      {groups.length > 0 && (
+        <div className="p-4 border-b border-border">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
+            Groups ({groups.length})
+          </h3>
+          <div className="space-y-1">
+            {groups.map(group => (
+              <button
+                key={group.id}
+                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors text-left"
+                onClick={() => {
+                  // TODO: Implement group selection
+                  console.log('Selected group:', group);
+                }}
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                  {group.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{group.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {group.description || `${group.memberCount || 0} members`}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Contacts */}
       <ContactList />
 
@@ -132,11 +197,6 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{user?.fullName}</p>
-
-      {/* Manage Users Dialog */}
-      {showManageUsers && (
-        <ManageUsers onClose={() => setShowManageUsers(false)} />
-      )}
               <p className="text-xs text-muted-foreground truncate">@{user?.username}</p>
             </div>
           </div>
@@ -147,6 +207,21 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
       {showInvitation && (
         <SendInvitation onClose={() => setShowInvitation(false)} />
       )}
+
+      {/* Manage Users Dialog */}
+      {showManageUsers && (
+        <ManageUsers onClose={() => setShowManageUsers(false)} />
+      )}
+
+      {/* Create Group Dialog */}
+      {showCreateGroup && (
+        <CreateGroupDialog 
+          onClose={() => setShowCreateGroup(false)}
+          onGroupCreated={handleGroupCreated}
+        />
+      )}
     </div>
+  );
+}
   );
 }
