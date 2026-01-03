@@ -163,7 +163,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   status: 'delivered' as MessageStatus,
                   createdAt: serverTimestamp,  // Use server timestamp for consistency
                   isEncrypted: true,
-                }],
+                }].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort by timestamp
               },
             };
           });
@@ -231,20 +231,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           // Update message status to 'sent' and use server timestamp
           setConversations(prev => {
             const updated = { ...prev };
-            let messageFound = false;
             Object.keys(updated).forEach(contactId => {
               const messageIndex = updated[contactId].messages.findIndex(m => m.id === messageId);
               if (messageIndex >= 0) {
-                messageFound = true;
                 updated[contactId] = {
                   ...updated[contactId],
-                  messages: updated[contactId].messages.map(m =>
+                  messages: updated[contactId].messages.map((m, idx) =>
                     m.id === messageId ? { 
                       ...m, 
                       status: 'sent' as MessageStatus,
                       createdAt: serverTimestamp  // Use server timestamp for consistency
                     } : m
-                  ),
+                  ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort after update
                 };
               }
             });

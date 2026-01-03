@@ -111,9 +111,21 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         </DropdownMenu>
       </div>
 
+      {/* Create Group Button - Available to All Users */}
+      <div className="p-3 md:p-4 border-b border-border">
+        <Button 
+          onClick={() => setShowCreateGroup(true)} 
+          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+          size="sm"
+        >
+          <Users className="w-4 h-4 mr-2" />
+          Create Group Chat
+        </Button>
+      </div>
+
       {/* Admin Action Buttons */}
       {isAdmin && (
-        <div className="p-4 border-b border-border space-y-2">
+        <div className="p-3 md:p-4 border-b border-border space-y-2">
           <Button 
             onClick={() => setShowInvitation(true)} 
             className="w-full"
@@ -134,19 +146,6 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
           </Button>
         </div>
       )}
-
-      {/* Create Group Button */}
-      <div className="p-4 border-b border-border">
-        <Button 
-          onClick={() => setShowCreateGroup(true)} 
-          className="w-full"
-          size="sm"
-          variant="secondary"
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Create Group Chat
-        </Button>
-      </div>
 
       {/* Groups List */}
       {groups.length > 0 && (
