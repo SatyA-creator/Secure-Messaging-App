@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.database import get_db
-from app.middleware.auth import get_current_user
+from app.api.auth import get_current_user
 from app.services.group_service import GroupService
 from app.models.user import User
 
