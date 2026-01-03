@@ -54,8 +54,18 @@ class WebSocketService {
           }
         };
 
-        this.ws.onclose = () => {
-          console.log('❌ WebSocket disconnected');
+        this.ws.onclose = (event) => {
+          console.log('❌ WebSocket disconnected', event.code, event.reason);
+          
+          // If disconnected due to authentication error (403), get fresh token
+          if (event.code === 1008 || event.code === 1006) {
+            console.log('🔑 Authentication error detected, will use fresh token on reconnect');
+            const freshToken = localStorage.getItem('token');
+            if (freshToken) {
+              this.token = freshToken;
+            }
+          }
+          
           this.handleReconnect();
         };
 
@@ -92,10 +102,16 @@ class WebSocketService {
       console.log(`🔄 Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       
       setTimeout(() => {
-        // ✅ Use stored userId and token for reconnection
-        this.connect(this.userId, this.token).catch(() => {
-          console.error('❌ Reconnection failed');
-        });
+        // ✅ Get fresh token from localStorage for reconnection
+        const freshToken = localStorage.getItem('token');
+        if (freshToken) {
+          this.token = freshToken;  // Update stored token
+          this.connect(this.userId, freshToken).catch(() => {
+            console.error('❌ Reconnection failed');
+          });
+        } else {
+          console.error('❌ No token available for reconnection');
+        }
       }, this.reconnectDelay * this.reconnectAttempts);
     } else {
       console.error('❌ Max reconnection attempts reached');
