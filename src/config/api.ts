@@ -37,7 +37,13 @@ const api = {
       },
       ...options,
     });
-    return response.json();
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json(), status: response.status };
   },
   
   post: async (endpoint: string, data?: unknown, options?: RequestInit) => {
@@ -52,7 +58,13 @@ const api = {
       body: data ? JSON.stringify(data) : undefined,
       ...options,
     });
-    return response.json();
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json(), status: response.status };
   },
   
   put: async (endpoint: string, data?: unknown, options?: RequestInit) => {
@@ -67,7 +79,13 @@ const api = {
       body: data ? JSON.stringify(data) : undefined,
       ...options,
     });
-    return response.json();
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json(), status: response.status };
   },
   
   delete: async (endpoint: string, options?: RequestInit) => {
@@ -81,7 +99,13 @@ const api = {
       },
       ...options,
     });
-    return response.json();
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json(), status: response.status };
   },
 };
 

@@ -27,6 +27,7 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingContacts, setLoadingContacts] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -35,11 +36,31 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
 
   const loadContacts = async () => {
     try {
-      const response = await api.get('/v1/contacts');
-      setContacts(response.data.contacts || []);
-    } catch (err) {
+      setLoadingContacts(true);
+      setError('');
+      
+      if (!user?.id) {
+        setError('User not authenticated');
+        return;
+      }
+
+      // Call the correct endpoint with user_id parameter
+      const response = await api.get(`/api/v1/contacts?user_id=${user.id}`);
+      
+      // Map the backend response format to frontend format
+      const mappedContacts = (response.data || []).map((contact: any) => ({
+        id: contact.contact_id,
+        username: contact.contact_username,
+        email: contact.contact_email,
+        full_name: contact.contact_full_name || contact.contact_username
+      }));
+      
+      setContacts(mappedContacts);
+    } catch (err: any) {
       console.error('Error loading contacts:', err);
-      setError('Failed to load contacts');
+      setError('Failed to load contacts. Please try again.');
+    } finally {
+      setLoadingContacts(false);
     }
   };
 
@@ -200,9 +221,24 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
 
             {/* Contacts List */}
             <div className="border rounded-lg max-h-64 overflow-y-auto">
-              {filteredContacts.length === 0 ? (
+              {loadingContacts ? (
                 <div className="p-4 text-center text-gray-500">
-                  No contacts available
+                  Loading contacts...
+                </div>
+              ) : error ? (
+                <div className="p-4 text-center">
+                  <div className="text-red-600 mb-2">{error}</div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={loadContacts}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : filteredContacts.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  {searchQuery ? 'No contacts match your search' : 'No contacts available'}
                 </div>
               ) : (
                 filteredContacts.map(contact => (
@@ -225,8 +261,8 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
+          {/* Only show creation errors, not loading errors */}
+          {error && !loadingContacts && !error.includes('load contacts') && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
             </div>
