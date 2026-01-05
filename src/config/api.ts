@@ -23,3 +23,66 @@ export const config = {
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,
 };
+
+// Default export for api client
+const api = {
+  get: async (endpoint: string, options?: RequestInit) => {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+        ...options?.headers,
+      },
+      ...options,
+    });
+    return response.json();
+  },
+  
+  post: async (endpoint: string, data?: unknown, options?: RequestInit) => {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      ...options,
+    });
+    return response.json();
+  },
+  
+  put: async (endpoint: string, data?: unknown, options?: RequestInit) => {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      ...options,
+    });
+    return response.json();
+  },
+  
+  delete: async (endpoint: string, options?: RequestInit) => {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+        ...options?.headers,
+      },
+      ...options,
+    });
+    return response.json();
+  },
+};
+
+export default api;

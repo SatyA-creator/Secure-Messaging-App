@@ -75,23 +75,32 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
 
       // Create the group
       const createResponse = await api.post('/v1/groups/create', null, {
-        params: {
-          name: groupName,
-          description: description || undefined
-        }
+        // Send as query params in URL
       });
+      
+      // Build URL with query params manually
+      const url = `/v1/groups/create?name=${encodeURIComponent(groupName)}${description ? `&description=${encodeURIComponent(description)}` : ''}`;
+      const groupData = await fetch(`${import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app'}${url}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      }).then(res => res.json());
 
-      const newGroup = createResponse.data;
-      console.log('✅ Group created:', newGroup);
+      console.log('✅ Group created:', groupData);
 
       // Add selected members to the group
-      const memberPromises = Array.from(selectedMembers).map(memberId =>
-        api.post(`/v1/groups/add-member/${newGroup.group_id}`, null, {
-          params: {
-            user_id: memberId
-          }
-        })
-      );
+      const memberPromises = Array.from(selectedMembers).map(memberId => {
+        const addUrl = `/v1/groups/add-member/${groupData.group_id}?user_id=${memberId}`;
+        return fetch(`${import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app'}${addUrl}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          },
+        });
+      });
 
       await Promise.all(memberPromises);
       console.log('✅ All members added to group');
@@ -99,12 +108,12 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
       // Notify parent component
       if (onGroupCreated) {
         onGroupCreated({
-          id: newGroup.group_id,
-          name: newGroup.name,
-          description: newGroup.description,
-          admin_id: newGroup.admin_id,
+          id: groupData.group_id,
+          name: groupData.name,
+          description: groupData.description,
+          admin_id: groupData.admin_id,
           memberCount: selectedMembers.size + 1, // +1 for admin
-          created_at: newGroup.created_at
+          created_at: groupData.created_at
         });
       }
 

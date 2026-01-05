@@ -246,9 +246,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 };
               }
             });
-            if (messageFound) {
-              console.log(`✅ Updated message ${messageId} status to 'sent'`);
-            }
             return updated;
           });
         }
