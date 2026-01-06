@@ -32,15 +32,20 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
-    loadGroups();
-  }, []);
+    if (user) {
+      loadGroups();
+    }
+  }, [user]);
 
   const loadGroups = async () => {
     try {
+      console.log('Loading groups...');
       const response = await api.get('/groups');
+      console.log('Groups loaded:', response.data);
       setGroups(response.data || []);
     } catch (err) {
       console.error('Error loading groups:', err);
+      setGroups([]);
     }
   };
 

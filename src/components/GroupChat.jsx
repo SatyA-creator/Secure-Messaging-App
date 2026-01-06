@@ -104,17 +104,17 @@ export default function GroupChat({ group, currentUser }) {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-white">
+    <div className="flex flex-col h-screen w-full bg-white overflow-hidden">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 flex-shrink-0">
+      <div className="bg-blue-600 text-white p-4 flex-shrink-0 shadow-md">
         <h2 className="text-xl font-bold">{group.name || 'Group Chat'}</h2>
         <p className="text-sm opacity-75">{members.length} members</p>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Messages Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
             {loading ? (
@@ -159,18 +159,19 @@ export default function GroupChat({ group, currentUser }) {
           </div>
 
           {/* Input */}
-          <div className="bg-white border-t p-4 flex gap-2">
+          <div className="bg-white border-t border-gray-200 p-4 flex gap-2 flex-shrink-0 shadow-lg">
             <input
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               placeholder="Type a message..."
-              className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <button
               onClick={handleSendMessage}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              disabled={!inputMessage.trim()}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
             >
               Send
             </button>
@@ -178,8 +179,8 @@ export default function GroupChat({ group, currentUser }) {
         </div>
 
         {/* Members List */}
-        <div className="w-48 border-l p-4 bg-gray-50 overflow-y-auto">
-          <h3 className="font-bold mb-4">Members ({members.length})</h3>
+        <div className="w-64 border-l border-gray-200 p-4 bg-gray-50 overflow-y-auto flex-shrink-0">
+          <h3 className="font-bold text-gray-700 mb-4 text-sm uppercase tracking-wide">Members ({members.length})</h3>
           <div className="space-y-2">
             {members.map(member => (
               <div key={member.id || member.user_id} className="text-sm p-2 rounded hover:bg-gray-200">
