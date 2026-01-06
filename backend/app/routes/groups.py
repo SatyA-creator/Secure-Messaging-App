@@ -8,7 +8,7 @@ from app.api.auth import get_current_user
 from app.services.group_service import GroupService
 from app.models.user import User
 
-router = APIRouter(prefix="/api/groups", tags=["groups"])
+router = APIRouter()
 
 @router.post("/create")
 async def create_group(
