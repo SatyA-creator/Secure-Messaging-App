@@ -25,7 +25,7 @@ export default function GroupChat({ group, currentUser }) {
   const loadGroupMessages = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/v1/groups/${group.id}/messages`);
+      const response = await api.get(`/groups/${group.id}/messages`);
       const messagesData = response.data.messages || [];
       setMessages(messagesData.reverse());
       scrollToBottom();
@@ -38,7 +38,7 @@ export default function GroupChat({ group, currentUser }) {
 
   const loadGroupMembers = async () => {
     try {
-      const response = await api.get(`/v1/groups/${group.id}/members`);
+      const response = await api.get(`/groups/${group.id}/members`);
       setMembers(response.data);
     } catch (err) {
       console.error('Error loading members:', err);

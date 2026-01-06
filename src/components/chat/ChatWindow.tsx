@@ -35,7 +35,7 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
 
   const loadGroupDetails = async (groupId: string) => {
     try {
-      const response = await api.get(`/v1/groups/${groupId}/members`);
+      const response = await api.get(`/groups/${groupId}/members`);
       // Create a group object with the necessary data
       setSelectedGroup({
         id: groupId,

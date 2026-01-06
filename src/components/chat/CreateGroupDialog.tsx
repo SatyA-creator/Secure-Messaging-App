@@ -44,8 +44,8 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
         return;
       }
 
-      // Call the v1 API endpoint with user_id parameter
-      const response = await api.get(`/v1/contacts?user_id=${user.id}`);
+      // Call the API endpoint with user_id parameter
+      const response = await api.get(`/contacts?user_id=${user.id}`);
       
       // Map the backend response format to frontend format
       const mappedContacts = (response.data || []).map((contact: any) => ({
@@ -100,7 +100,7 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
       });
       
       // Build URL with query params manually
-      const url = `/v1/groups/create?name=${encodeURIComponent(groupName)}${description ? `&description=${encodeURIComponent(description)}` : ''}`;
+      const url = `/api/v1/groups/create?name=${encodeURIComponent(groupName)}${description ? `&description=${encodeURIComponent(description)}` : ''}`;
       const groupData = await fetch(`${import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app'}${url}`, {
         method: 'POST',
         headers: {
@@ -113,7 +113,7 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
 
       // Add selected members to the group
       const memberPromises = Array.from(selectedMembers).map(memberId => {
-        const addUrl = `/v1/groups/add-member/${groupData.group_id}?user_id=${memberId}`;
+        const addUrl = `/api/v1/groups/add-member/${groupData.group_id}?user_id=${memberId}`;
         return fetch(`${import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app'}${addUrl}`, {
           method: 'POST',
           headers: {

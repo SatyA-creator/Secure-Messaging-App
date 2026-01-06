@@ -37,7 +37,7 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
 
   const loadGroups = async () => {
     try {
-      const response = await api.get('/v1/groups');
+      const response = await api.get('/groups');
       setGroups(response.data || []);
     } catch (err) {
       console.error('Error loading groups:', err);
