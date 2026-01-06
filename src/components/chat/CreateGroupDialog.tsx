@@ -41,11 +41,16 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
       
       if (!user?.id) {
         setError('User not authenticated');
+        setLoadingContacts(false);
         return;
       }
 
+      console.log('Loading contacts for user:', user.id);
+      
       // Call the API endpoint with user_id parameter
       const response = await api.get(`/contacts?user_id=${user.id}`);
+      
+      console.log('Contacts response:', response);
       
       // Map the backend response format to frontend format
       const mappedContacts = (response.data || []).map((contact: any) => ({
@@ -55,10 +60,14 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
         full_name: contact.contact_full_name || contact.contact_username
       }));
       
+      console.log('Mapped contacts:', mappedContacts);
       setContacts(mappedContacts);
+      setError('');
     } catch (err: any) {
       console.error('Error loading contacts:', err);
-      setError('Failed to load contacts. Please try again.');
+      const errorMessage = err?.message || 'Failed to load contacts. Please try again.';
+      setError(errorMessage);
+      setContacts([]);
     } finally {
       setLoadingContacts(false);
     }
@@ -225,7 +234,7 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
                 <div className="p-4 text-center text-gray-500">
                   Loading contacts...
                 </div>
-              ) : error ? (
+              ) : error && contacts.length === 0 ? (
                 <div className="p-4 text-center">
                   <div className="text-red-600 mb-2">{error}</div>
                   <Button 
@@ -262,7 +271,7 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
           </div>
 
           {/* Only show creation errors, not loading errors */}
-          {error && !loadingContacts && !error.includes('load contacts') && (
+          {error && !loadingContacts && contacts.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
             </div>

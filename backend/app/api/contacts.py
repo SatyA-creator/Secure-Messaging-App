@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.contact import ContactCreate, ContactResponse
@@ -50,9 +50,9 @@ async def add_contact(contact: ContactCreate, db: Session = Depends(get_db)):
         created_at=db_contact.created_at
     )
 
-@router.get("/", response_model=List[ContactResponse])
-async def get_contacts(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Get all contacts for a user based on their role"""
+@router.get("", response_model=List[ContactResponse])
+async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
+    """Get all contacts for a user - returns all users for group creation"""
     
     # Get the requesting user
     requesting_user = db.query(User).filter(User.id == user_id).first()
