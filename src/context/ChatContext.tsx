@@ -31,6 +31,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocketService | null>(null);
 
   const selectGroup = useCallback((groupId: string) => {
+    console.log('ChatContext: Selecting group:', groupId);
     setSelectedGroupId(groupId);
     setSelectedContactId(null);
   }, []);

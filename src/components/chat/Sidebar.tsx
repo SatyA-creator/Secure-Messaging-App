@@ -45,6 +45,10 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   };
 
   const handleGroupCreated = (newGroup: any) => {
+    console.log('Group created:', newGroup);
+    // Reload groups from server to get fresh data
+    loadGroups();
+    // Also add optimistically to the UI
     setGroups(prev => [...prev, newGroup]);
   };
 
@@ -161,6 +165,7 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
                 key={group.id}
                 className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors text-left"
                 onClick={() => {
+                  console.log('Selecting group:', group);
                   selectGroup(group.id);
                   if (onSelectContact) onSelectContact();
                 }}

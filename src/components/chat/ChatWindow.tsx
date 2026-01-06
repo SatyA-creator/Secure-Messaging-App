@@ -27,6 +27,7 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
   // Load group details when a group is selected
   useEffect(() => {
     if (selectedGroupId) {
+      console.log('Loading group details for:', selectedGroupId);
       loadGroupDetails(selectedGroupId);
     } else {
       setSelectedGroup(null);
@@ -35,11 +36,15 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
 
   const loadGroupDetails = async (groupId: string) => {
     try {
+      console.log('Fetching group details for:', groupId);
       // Fetch both group info and members
       const [groupResponse, membersResponse] = await Promise.all([
         api.get(`/groups/${groupId}`),
         api.get(`/groups/${groupId}/members`)
       ]);
+      
+      console.log('Group details:', groupResponse.data);
+      console.log('Group members:', membersResponse.data);
       
       setSelectedGroup({
         id: groupId,
@@ -94,7 +99,17 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
   };
 
   // Render GroupChat if a group is selected
-  if (selectedGroupId && selectedGroup) {
+  if (selectedGroupId) {
+    if (!selectedGroup) {
+      return (
+        <div className="flex-1 flex items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+            <p className="text-muted-foreground">Loading group...</p>
+          </div>
+        </div>
+      );
+    }
     return <GroupChat group={selectedGroup} currentUser={user} />;
   }
 
