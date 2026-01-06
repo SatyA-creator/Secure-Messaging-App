@@ -51,10 +51,14 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
 
   const handleGroupCreated = (newGroup: any) => {
     console.log('Group created:', newGroup);
-    // Reload groups from server to get fresh data
+    // Don't add optimistically, just reload from server
     loadGroups();
-    // Also add optimistically to the UI
-    setGroups(prev => [...prev, newGroup]);
+    // Select the newly created group
+    if (newGroup?.id) {
+      setTimeout(() => {
+        selectGroup(newGroup.id);
+      }, 500);
+    }
   };
 
   return (

@@ -47,8 +47,8 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
 
       console.log('Loading contacts for user:', user.id);
       
-      // Call the API endpoint with user_id parameter
-      const response = await api.get(`/contacts?user_id=${user.id}`);
+      // Call the API endpoint with user_id parameter - use all-users for group creation
+      const response = await api.get(`/contacts/all-users?user_id=${user.id}`);
       
       console.log('Contacts response:', response);
       

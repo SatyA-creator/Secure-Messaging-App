@@ -52,7 +52,7 @@ async def add_contact(contact: ContactCreate, db: Session = Depends(get_db)):
 
 @router.get("", response_model=List[ContactResponse])
 async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
-    """Get all contacts for a user - returns all users for group creation"""
+    """Get actual contacts for a user (only users they have in their contact list)"""
     
     # Get the requesting user
     requesting_user = db.query(User).filter(User.id == user_id).first()
@@ -62,18 +62,47 @@ async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(ge
             detail="User not found"
         )
     
-    # For group creation, we need to return all users except the requesting user
-    # Admin can see all users
-    # Regular users can see all users for group creation
+    # Get only actual contacts (users in the contact list)
+    contacts = db.query(Contact, User).join(
+        User, Contact.contact_id == User.id
+    ).filter(Contact.user_id == user_id).all()
+    
+    results = []
+    for contact, user in contacts:
+        results.append(ContactResponse(
+            id=contact.id,
+            user_id=contact.user_id,
+            contact_id=contact.contact_id,
+            nickname=contact.nickname,
+            created_at=contact.created_at,
+            contact_email=user.email,
+            contact_username=user.username,
+            contact_full_name=user.full_name,
+            contact_public_key=user.public_key,
+            contact_last_seen=user.last_seen
+        ))
+    
+    return results
+
+@router.get("/all-users", response_model=List[ContactResponse])
+async def get_all_users(user_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
+    """Get all users for group creation - returns all users except the requesting user"""
+    
+    # Get the requesting user
+    requesting_user = db.query(User).filter(User.id == user_id).first()
+    if not requesting_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
     
     # Get all users except the requesting user
     all_users = db.query(User).filter(User.id != user_id).all()
     
     # Get existing contacts for this user
     existing_contacts = db.query(Contact).filter(Contact.user_id == user_id).all()
-    contact_ids = {contact.contact_id for contact in existing_contacts}
     
-    # Build response with all users, marking which are already contacts
+    # Build response with all users
     results = []
     for user in all_users:
         # Check if this user is already a contact
