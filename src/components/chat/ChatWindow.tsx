@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useChat } from '@/context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
 import { MessageBubble } from './MessageBubble';
@@ -7,6 +7,8 @@ import { Lock, Shield, MoreVertical, Phone, Video, ArrowLeft } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import GroupChat from '../GroupChat';
+import api from '@/config/api';
 
 interface ChatWindowProps {
   onBack?: () => void;
@@ -14,12 +16,36 @@ interface ChatWindowProps {
 
 export function ChatWindow({ onBack }: ChatWindowProps) {
   const { user } = useAuth();
-  const { contacts, conversations, selectedContactId, sendMessage, sendTypingIndicator, selectContact } = useChat();
+  const { contacts, conversations, selectedContactId, selectedGroupId, sendMessage, sendTypingIndicator, selectContact } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<any>(null);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
   const conversation = selectedContactId ? conversations[selectedContactId] : null;
+
+  // Load group details when a group is selected
+  useEffect(() => {
+    if (selectedGroupId) {
+      loadGroupDetails(selectedGroupId);
+    } else {
+      setSelectedGroup(null);
+    }
+  }, [selectedGroupId]);
+
+  const loadGroupDetails = async (groupId: string) => {
+    try {
+      const response = await api.get(`/v1/groups/${groupId}/members`);
+      // Create a group object with the necessary data
+      setSelectedGroup({
+        id: groupId,
+        name: 'Group Chat', // You can fetch this from a group details endpoint
+        members: response.data
+      });
+    } catch (err) {
+      console.error('Error loading group details:', err);
+    }
+  };
 
   // Import WebSocketService
   useEffect(() => {
@@ -60,6 +86,11 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
       await sendMessage(selectedContactId, content);
     }
   };
+
+  // Render GroupChat if a group is selected
+  if (selectedGroupId && selectedGroup) {
+    return <GroupChat group={selectedGroup} currentUser={user} />;
+  }
 
   if (!selectedContact) {
     return (

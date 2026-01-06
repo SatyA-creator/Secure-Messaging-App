@@ -44,8 +44,8 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
         return;
       }
 
-      // Call the correct endpoint with user_id parameter
-      const response = await api.get(`/api/v1/contacts?user_id=${user.id}`);
+      // Call the v1 API endpoint with user_id parameter
+      const response = await api.get(`/v1/contacts?user_id=${user.id}`);
       
       // Map the backend response format to frontend format
       const mappedContacts = (response.data || []).map((contact: any) => ({

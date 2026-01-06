@@ -8,7 +8,9 @@ interface ChatContextType {
   contacts: Contact[];
   conversations: Record<string, Conversation>;
   selectedContactId: string | null;
+  selectedGroupId: string | null;
   selectContact: (contactId: string) => void;
+  selectGroup: (groupId: string) => void;
   sendMessage: (recipientId: string, content: string) => Promise<void>;
   markAsRead: (contactId: string) => void;
   addContact: (email: string, displayName?: string) => Promise<void>;
@@ -24,8 +26,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [conversations, setConversations] = useState<Record<string, Conversation>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocketService | null>(null);
+
+  const selectGroup = useCallback((groupId: string) => {
+    setSelectedGroupId(groupId);
+    setSelectedContactId(null);
+  }, []);
 
   // Fetch contacts from API
   const fetchContactsFromAPI = useCallback(async () => {
@@ -374,6 +382,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const selectContact = useCallback(async (contactId: string) => {
     setSelectedContactId(contactId);
+    setSelectedGroupId(null);
     
     // Fetch conversation history from backend
     if (user) {
@@ -565,7 +574,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         contacts,
         conversations,
         selectedContactId,
+        selectedGroupId,
         selectContact,
+        selectGroup,
         sendMessage,
         markAsRead,
         addContact,

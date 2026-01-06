@@ -62,37 +62,40 @@ async def get_contacts(user_id: uuid.UUID, db: Session = Depends(get_db)):
             detail="User not found"
         )
     
-    # Admin can see all their contacts (all users they invited)
-    # Regular users can only see the admin(s) who invited them
-    if requesting_user.role == 'admin':
-        # Admin sees all their contacts
-        contacts = db.query(Contact, User).join(
-            User, Contact.contact_id == User.id
-        ).filter(Contact.user_id == user_id).all()
-    else:
-        # Regular user only sees admins they're connected to
-        contacts = db.query(Contact, User).join(
-            User, Contact.contact_id == User.id
-        ).filter(
-            Contact.user_id == user_id,
-            User.role == 'admin'
-        ).all()
+    # For group creation, we need to return all users except the requesting user
+    # Admin can see all users
+    # Regular users can see all users for group creation
     
-    return [
-        ContactResponse(
-            id=contact.id,
-            user_id=contact.user_id,
-            contact_id=contact.contact_id,
-            nickname=contact.nickname,
-            created_at=contact.created_at,
+    # Get all users except the requesting user
+    all_users = db.query(User).filter(User.id != user_id).all()
+    
+    # Get existing contacts for this user
+    existing_contacts = db.query(Contact).filter(Contact.user_id == user_id).all()
+    contact_ids = {contact.contact_id for contact in existing_contacts}
+    
+    # Build response with all users, marking which are already contacts
+    results = []
+    for user in all_users:
+        # Check if this user is already a contact
+        existing_contact = next(
+            (c for c in existing_contacts if c.contact_id == user.id),
+            None
+        )
+        
+        results.append(ContactResponse(
+            id=existing_contact.id if existing_contact else user.id,
+            user_id=user_id,
+            contact_id=user.id,
+            nickname=existing_contact.nickname if existing_contact else None,
+            created_at=existing_contact.created_at if existing_contact else user.created_at,
             contact_email=user.email,
             contact_username=user.username,
             contact_full_name=user.full_name,
             contact_public_key=user.public_key,
             contact_last_seen=user.last_seen
-        )
-        for contact, user in contacts
-    ]
+        ))
+    
+    return results
 
 @router.delete("/{contact_id}")
 async def remove_contact(contact_id: uuid.UUID, db: Session = Depends(get_db)):

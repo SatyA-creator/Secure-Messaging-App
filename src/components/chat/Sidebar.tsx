@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useChat } from '@/context/ChatContext';
 import { ContactList } from './ContactList';
 import { ConnectionStatus } from './ConnectionStatus';
 import { Shield, Settings, LogOut, UserPlus, Crown, Users } from 'lucide-react';
@@ -23,6 +24,7 @@ interface SidebarProps {
 
 export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const { user, logout } = useAuth();
+  const { selectGroup } = useChat();
   const [showInvitation, setShowInvitation] = useState(false);
   const [showManageUsers, setShowManageUsers] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -159,8 +161,8 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
                 key={group.id}
                 className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors text-left"
                 onClick={() => {
-                  // TODO: Implement group selection
-                  console.log('Selected group:', group);
+                  selectGroup(group.id);
+                  if (onSelectContact) onSelectContact();
                 }}
               >
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">

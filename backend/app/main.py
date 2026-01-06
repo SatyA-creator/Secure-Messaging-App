@@ -263,6 +263,84 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 recipient_id
                             )
                     
+                    elif message_type == "group_message":
+                        # Handle group message sending
+                        group_id = payload.get("group_id")
+                        encrypted_content = payload.get("encrypted_content")
+                        encrypted_session_keys = payload.get("encrypted_session_keys", {})
+                        
+                        if group_id:
+                            try:
+                                from app.models.group import GroupMember, GroupMessage
+                                from app.database import get_db
+                                from uuid import UUID
+                                import uuid as uuid_module
+                                
+                                # Get database session
+                                db = next(get_db())
+                                
+                                try:
+                                    # Get all group members
+                                    members = db.query(GroupMember).filter(
+                                        GroupMember.group_id == UUID(group_id)
+                                    ).all()
+                                    
+                                    # Create message
+                                    db_message = GroupMessage(
+                                        id=uuid_module.uuid4(),
+                                        group_id=UUID(group_id),
+                                        sender_id=UUID(user_id),
+                                        encrypted_content=encrypted_content.encode() if isinstance(encrypted_content, str) else encrypted_content,
+                                        encrypted_session_key=json.dumps(encrypted_session_keys).encode()
+                                    )
+                                    db.add(db_message)
+                                    db.commit()
+                                    db.refresh(db_message)
+                                    
+                                    message_id = str(db_message.id)
+                                    timestamp = db_message.created_at.isoformat()
+                                    
+                                    logger.info(f"💾 Group message {message_id} saved to database")
+                                    
+                                    # Send to all group members except sender
+                                    for member in members:
+                                        if str(member.user_id) != user_id:
+                                            await manager.send_personal_message(
+                                                json.dumps({
+                                                    "type": "new_group_message",
+                                                    "group_id": group_id,
+                                                    "sender_id": user_id,
+                                                    "message_id": message_id,
+                                                    "encrypted_content": encrypted_content,
+                                                    "encrypted_session_keys": encrypted_session_keys,
+                                                    "timestamp": timestamp
+                                                }),
+                                                str(member.user_id)
+                                            )
+                                    
+                                    # Send confirmation to sender
+                                    await manager.send_personal_message(
+                                        json.dumps({
+                                            "type": "group_message_sent",
+                                            "group_id": group_id,
+                                            "message_id": message_id,
+                                            "status": "sent",
+                                            "timestamp": timestamp
+                                        }),
+                                        user_id
+                                    )
+                                    
+                                    logger.info(f"📨 Group message forwarded from {user_id} to group {group_id}")
+                                    
+                                except Exception as inner_error:
+                                    db.rollback()
+                                    logger.error(f"❌ Database error: {inner_error}")
+                                    raise
+                                finally:
+                                    db.close()
+                            except Exception as db_error:
+                                logger.error(f"❌ Failed to save group message: {db_error}")
+                    
                     elif message_type == "contact_added":
                         # Notify the inviter (admin) about the new contact
                         inviter_id = payload.get("inviter_id") 
