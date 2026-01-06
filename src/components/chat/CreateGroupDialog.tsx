@@ -103,33 +103,24 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
       setLoading(true);
       setError('');
 
-      // Create the group
-      const createResponse = await api.post('/v1/groups/create', null, {
-        // Send as query params in URL
-      });
-      
-      // Build URL with query params manually
-      const url = `/api/v1/groups/create?name=${encodeURIComponent(groupName)}${description ? `&description=${encodeURIComponent(description)}` : ''}`;
-      const groupData = await fetch(`${import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app'}${url}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-        },
-      }).then(res => res.json());
+      console.log('Creating group with name:', groupName, 'and', selectedMembers.size, 'members');
+
+      // Create the group using api.post
+      const createUrl = `/groups/create?name=${encodeURIComponent(groupName)}${description ? `&description=${encodeURIComponent(description)}` : ''}`;
+      const groupResponse = await api.post(createUrl);
+      const groupData = groupResponse.data;
 
       console.log('✅ Group created:', groupData);
 
       // Add selected members to the group
-      const memberPromises = Array.from(selectedMembers).map(memberId => {
-        const addUrl = `/api/v1/groups/add-member/${groupData.group_id}?user_id=${memberId}`;
-        return fetch(`${import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app'}${addUrl}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          },
-        });
+      const memberPromises = Array.from(selectedMembers).map(async (memberId) => {
+        try {
+          const addUrl = `/groups/add-member/${groupData.group_id}?user_id=${memberId}`;
+          await api.post(addUrl);
+          console.log('✅ Added member:', memberId);
+        } catch (err) {
+          console.error('Failed to add member:', memberId, err);
+        }
       });
 
       await Promise.all(memberPromises);
@@ -150,7 +141,8 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
       onClose();
     } catch (err: any) {
       console.error('Error creating group:', err);
-      setError(err.response?.data?.detail || 'Failed to create group');
+      const errorMsg = err?.message || err?.response?.data?.detail || err?.toString() || 'Failed to create group';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

@@ -35,12 +35,18 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
 
   const loadGroupDetails = async (groupId: string) => {
     try {
-      const response = await api.get(`/groups/${groupId}/members`);
-      // Create a group object with the necessary data
+      // Fetch both group info and members
+      const [groupResponse, membersResponse] = await Promise.all([
+        api.get(`/groups/${groupId}`),
+        api.get(`/groups/${groupId}/members`)
+      ]);
+      
       setSelectedGroup({
         id: groupId,
-        name: 'Group Chat', // You can fetch this from a group details endpoint
-        members: response.data
+        name: groupResponse.data.name || 'Group Chat',
+        description: groupResponse.data.description,
+        admin_id: groupResponse.data.admin_id,
+        members: membersResponse.data
       });
     } catch (err) {
       console.error('Error loading group details:', err);

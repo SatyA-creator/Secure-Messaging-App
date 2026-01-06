@@ -104,16 +104,17 @@ export default function GroupChat({ group, currentUser }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-lg">
+    <div className="flex flex-col h-full w-full bg-white">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 rounded-t-lg">
-        <h2 className="text-xl font-bold">{group.name}</h2>
+      <div className="bg-blue-600 text-white p-4 flex-shrink-0">
+        <h2 className="text-xl font-bold">{group.name || 'Group Chat'}</h2>
         <p className="text-sm opacity-75">{members.length} members</p>
       </div>
 
-      {/* Members Sidebar */}
-      <div className="flex flex-1">
-        <div className="flex-1 flex flex-col">
+      {/* Main Content Area */}
+      <div className="flex flex-1 min-h-0">
+        {/* Messages Area */}
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
             {loading ? (

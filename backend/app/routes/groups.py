@@ -92,6 +92,29 @@ async def get_user_groups(
     groups = GroupService.get_user_groups(db, user_id=current_user.id)
     return groups
 
+@router.get("/{group_id}")
+async def get_group_details(
+    group_id: UUID,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get group details"""
+    from app.models.group import Group
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found"
+        )
+    
+    return {
+        "id": str(group.id),
+        "name": group.name,
+        "description": group.description,
+        "admin_id": str(group.admin_id),
+        "created_at": group.created_at
+    }
+
 @router.get("/{group_id}/messages")
 async def get_group_messages(
     group_id: UUID,
