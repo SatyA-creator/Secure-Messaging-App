@@ -104,7 +104,7 @@ export default function GroupChat({ group, currentUser }) {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-white overflow-hidden">
+    <div className="flex flex-col h-screen w-full overflow-hidden">
       {/* Header */}
       <div className="bg-blue-600 text-white p-4 flex-shrink-0 shadow-md">
         <h2 className="text-xl font-bold">{group.name || 'Group Chat'}</h2>
