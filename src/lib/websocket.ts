@@ -128,8 +128,8 @@ class WebSocketService {
 
   public send(type: string, payload: unknown) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // Merge type and payload into one object for backend compatibility
-      const message = JSON.stringify({ type, ...payload as object });
+      // ✅ CRITICAL FIX: Nest payload properly for backend compatibility
+      const message = JSON.stringify({ type, payload });
       console.log(`📤 Sending WebSocket message: ${type}`, payload);
       this.ws.send(message);
     } else {
