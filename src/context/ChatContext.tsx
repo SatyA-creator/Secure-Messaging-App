@@ -47,9 +47,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       const token = localStorage.getItem('authToken');
-      console.log('Fetching contacts with URL:', `${ENV.API_URL}/contacts/?user_id=${user.id}`);
+      console.log('Fetching contacts with URL:', `${ENV.API_URL}/contacts?user_id=${user.id}`);
       
-      const response = await fetch(`${ENV.API_URL}/contacts/?user_id=${user.id}`, {
+      const response = await fetch(`${ENV.API_URL}/contacts?user_id=${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -62,6 +62,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         console.error('Failed to fetch contacts:', response.status);
         const errorText = await response.text();
         console.error('Error response:', errorText);
+        console.error('Request URL was:', `${ENV.API_URL}/contacts?user_id=${user.id}`);
+        console.error('Auth token present:', !!localStorage.getItem('authToken'));
         setContacts([]);
         setConversations({});
         return;
@@ -73,13 +75,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // Transform API contacts to Contact type
       const apiContacts: Contact[] = contactsData.map((c: any) => ({
-        id: c.contact_user_id || c.contact_id || c.id,
-        username: c.username || c.contact_username || 'Unknown',
-        email: c.email || c.contact_email || '',
-        fullName: c.full_name || c.contact_full_name || c.username || 'Unknown User',
-        publicKey: c.public_key || 'api-key',
+        id: c.contact_id,
+        username: c.contact_username || 'Unknown',
+        email: c.contact_email || '',
+        fullName: c.contact_full_name || c.contact_username || 'Unknown User',
+        publicKey: c.contact_public_key || 'api-key',
         isOnline: c.is_online || false,
-        lastSeen: c.last_seen ? new Date(c.last_seen) : new Date(),
+        lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : new Date(),
         unreadCount: 0,
       }));
 

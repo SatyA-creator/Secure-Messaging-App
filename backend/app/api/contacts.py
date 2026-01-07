@@ -50,6 +50,7 @@ async def add_contact(contact: ContactCreate, db: Session = Depends(get_db)):
         created_at=db_contact.created_at
     )
 
+@router.get("/", response_model=List[ContactResponse])
 @router.get("", response_model=List[ContactResponse])
 async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
     """Get actual contacts for a user (only users they have in their contact list)"""
