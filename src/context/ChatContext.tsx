@@ -125,6 +125,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
       
+      console.log('🔐 Connecting WebSocket with user:', user.id);
+      console.log('   User email:', user.email);
+      console.log('   Token length:', token.length);
+      
       // ✅ Connect using the user ID and JWT token
       wsRef.current.connect(user.id, token)
         .then(() => {
@@ -456,6 +460,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.error('❌ Cannot send message: User not authenticated');
       return;
     }
+    
+    console.log('📤 Sending message:');
+    console.log('   From (sender):', user.id);
+    console.log('   To (recipient):', recipientId);
+    console.log('   Content:', content);
     
     if (!wsRef.current?.isConnected()) {
       console.error('❌ Cannot send message: WebSocket not connected');

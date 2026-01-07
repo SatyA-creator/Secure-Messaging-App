@@ -130,8 +130,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
     try:
         # ✅ Verify JWT token
         payload = AuthService.verify_token(token)
-        if payload.get("sub") != user_id:
-            logger.error(f"❌ Token mismatch for user {user_id}")
+        token_user_id = payload.get("sub")
+        
+        logger.info(f"🔐 WebSocket authentication:")
+        logger.info(f"   URL user_id: {user_id}")
+        logger.info(f"   Token user_id (sub): {token_user_id}")
+        
+        if token_user_id != user_id:
+            logger.error(f"❌ Token mismatch! URL={user_id}, Token={token_user_id}")
             await websocket.close(code=1008)  # Policy violation
             return
         
