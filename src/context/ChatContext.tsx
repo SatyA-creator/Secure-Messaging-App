@@ -374,23 +374,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Fetch contacts on mount
-  useEffect(() => {
-    if (user) {
-      fetchContactsFromAPI();
-    }
-  }, [user, fetchContactsFromAPI]);
-
-  // Auto-select contact from invitation acceptance
-  useEffect(() => {
-    const autoSelectContactId = sessionStorage.getItem('autoSelectContact');
-    if (autoSelectContactId && contacts.length > 0 && contacts.some(c => c.id === autoSelectContactId)) {
-      console.log('Auto-selecting contact from invitation:', autoSelectContactId);
-      sessionStorage.removeItem('autoSelectContact');
-      selectContact(autoSelectContactId);
-    }
-  }, [contacts, selectContact]);
-
+  // Define selectContact before it's used in useEffect
   const selectContact = useCallback(async (contactId: string) => {
     setSelectedContactId(contactId);
     setSelectedGroupId(null);
@@ -440,6 +424,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [user]);
+
+  // Fetch contacts on mount
+  useEffect(() => {
+    if (user) {
+      fetchContactsFromAPI();
+    }
+  }, [user, fetchContactsFromAPI]);
+
+  // Auto-select contact from invitation acceptance
+  useEffect(() => {
+    const autoSelectContactId = sessionStorage.getItem('autoSelectContact');
+    if (autoSelectContactId && contacts.length > 0 && contacts.some(c => c.id === autoSelectContactId)) {
+      console.log('Auto-selecting contact from invitation:', autoSelectContactId);
+      sessionStorage.removeItem('autoSelectContact');
+      selectContact(autoSelectContactId);
+    }
+  }, [contacts, selectContact]);
 
   // ✅ CRITICAL FIX #4: Actually send messages via WebSocket
   const sendMessage = useCallback(async (recipientId: string, content: string) => {
