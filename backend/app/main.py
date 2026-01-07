@@ -167,13 +167,19 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                     payload = message_data.get("payload", {})
                     
                     logger.info(f"📨 WebSocket message from {user_id}: {message_type}")
+                    logger.info(f"   Full payload: {payload}")
                     
                     if message_type == "message":
+                        logger.info(f"🔍 Processing message type")
                         # Handle real-time message sending
                         recipient_id = payload.get("recipient_id")
                         encrypted_content = payload.get("encrypted_content")
                         message_id = payload.get("message_id")
                         encrypted_session_key = payload.get("encrypted_session_key")
+                        
+                        logger.info(f"   recipient_id: {recipient_id}")
+                        logger.info(f"   message_id: {message_id}")
+                        logger.info(f"   content: {encrypted_content}")
                         
                         if recipient_id:
                             # ✅ CRITICAL FIX: Save message to database
@@ -388,8 +394,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                         
                 except json.JSONDecodeError:
                     logger.error(f"❌ Invalid JSON received from WebSocket (user: {user_id})")
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ JSON decode error: {e}")
                 except Exception as e:
                     logger.error(f"❌ Error processing WebSocket message: {str(e)}")
+                    logger.error(f"   Message data: {data}")
+                    logger.error(f"   Full traceback: {traceback.format_exc()}")
+                    import traceback
+                    traceback.print_exc()
                     
         except WebSocketDisconnect:
             manager.disconnect(user_id)
