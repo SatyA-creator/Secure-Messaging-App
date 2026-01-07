@@ -46,6 +46,8 @@ async def send_message(message: MessageCreate, db: Session = Depends(get_db)):
 async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID, db: Session = Depends(get_db)):
     """Get conversation between current user and another user"""
     print(f"\n🔍 Querying conversation between {current_user_id} and {other_user_id}")
+    print(f"   current_user_id type: {type(current_user_id)}")
+    print(f"   other_user_id type: {type(other_user_id)}")
     
     # Debug: Check total messages in database
     total_messages = db.query(Message).count()
@@ -59,9 +61,19 @@ async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID,
     received_by_current = db.query(Message).filter(Message.recipient_id == current_user_id).count()
     print(f"📥 Messages received by {current_user_id}: {received_by_current}")
     
+    # Debug: Show all sender and recipient IDs in database
+    all_messages = db.query(Message).all()
+    print(f"\n📋 All messages in database:")
+    for i, msg in enumerate(all_messages[:10]):  # Show first 10
+        print(f"   Message {i+1}: sender={msg.sender_id} (type: {type(msg.sender_id)}), recipient={msg.recipient_id} (type: {type(msg.recipient_id)})")
+    
+    # Ensure UUIDs are proper UUID objects for comparison
+    current_user_uuid = current_user_id if isinstance(current_user_id, uuid.UUID) else uuid.UUID(str(current_user_id))
+    other_user_uuid = other_user_id if isinstance(other_user_id, uuid.UUID) else uuid.UUID(str(other_user_id))
+    
     messages = db.query(Message).filter(
-        ((Message.sender_id == current_user_id) & (Message.recipient_id == other_user_id)) |
-        ((Message.sender_id == other_user_id) & (Message.recipient_id == current_user_id))
+        ((Message.sender_id == current_user_uuid) & (Message.recipient_id == other_user_uuid)) |
+        ((Message.sender_id == other_user_uuid) & (Message.recipient_id == current_user_uuid))
     ).order_by(Message.created_at).all()
     
     print(f"💬 Found {len(messages)} messages in conversation")

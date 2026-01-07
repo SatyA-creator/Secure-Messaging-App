@@ -182,11 +182,21 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 db = next(get_db())
                                 
                                 try:
+                                    # Convert to UUID objects
+                                    sender_uuid = UUID(user_id)
+                                    recipient_uuid = UUID(recipient_id)
+                                    msg_uuid = UUID(message_id) if message_id else uuid_module.uuid4()
+                                    
+                                    logger.info(f"🔍 Creating message with UUIDs:")
+                                    logger.info(f"   sender_id: {sender_uuid} (type: {type(sender_uuid)})")
+                                    logger.info(f"   recipient_id: {recipient_uuid} (type: {type(recipient_uuid)})")
+                                    logger.info(f"   message_id: {msg_uuid} (type: {type(msg_uuid)})")
+                                    
                                     # Create and save message
                                     db_message = Message(
-                                        id=UUID(message_id) if message_id else uuid_module.uuid4(),
-                                        sender_id=UUID(user_id),
-                                        recipient_id=UUID(recipient_id),
+                                        id=msg_uuid,
+                                        sender_id=sender_uuid,
+                                        recipient_id=recipient_uuid,
                                         encrypted_content=str(encrypted_content),
                                         encrypted_session_key=str(encrypted_session_key or "default-key")
                                     )
@@ -194,13 +204,17 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     db.commit()
                                     db.refresh(db_message)
                                     
+                                    # Verify what was saved
+                                    logger.info(f"✅ Message saved - verifying:")
+                                    logger.info(f"   DB sender_id: {db_message.sender_id} (type: {type(db_message.sender_id)})")
+                                    logger.info(f"   DB recipient_id: {db_message.recipient_id} (type: {type(db_message.recipient_id)})")
+                                    
                                     # Use database timestamp for consistency
                                     timestamp = db_message.created_at.isoformat()
                                     message_id = str(db_message.id)
                                     
                                     logger.info(f"💾 Message {message_id} saved to database")
-                                    logger.info(f"   From: {user_id} To: {recipient_id}")
-                                    logger.info(f"   Content length: {len(encrypted_content)} chars")
+                                    logger.info(f"   Content: {encrypted_content[:50]}...")
                                     logger.info(f"   Timestamp: {timestamp}")
                                 except Exception as inner_error:
                                     db.rollback()
