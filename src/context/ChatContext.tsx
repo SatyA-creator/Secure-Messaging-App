@@ -170,7 +170,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   senderId: senderId,
                   recipientId: user.id,
                   encryptedContent: data.encrypted_content,
-                  decryptedContent: data.encrypted_content, // Will decrypt on display
+                  // Strip 'encrypted:' prefix for display
+                  decryptedContent: typeof data.encrypted_content === 'string' && data.encrypted_content.startsWith('encrypted:')
+                    ? data.encrypted_content.substring(10)
+                    : data.encrypted_content,
                   status: 'delivered' as MessageStatus,
                   createdAt: serverTimestamp,  // Use server timestamp for consistency
                   isEncrypted: true,
@@ -405,7 +408,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             senderId: msg.sender_id,
             recipientId: msg.recipient_id,
             encryptedContent: msg.encrypted_content,
-            decryptedContent: msg.encrypted_content,
+            // Strip 'encrypted:' prefix for display, or use the content as-is if no prefix
+            decryptedContent: msg.encrypted_content.startsWith('encrypted:') 
+              ? msg.encrypted_content.substring(10) 
+              : msg.encrypted_content,
             status: msg.is_read === true ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
             createdAt: new Date(msg.created_at),
             isEncrypted: true,

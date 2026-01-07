@@ -199,6 +199,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     message_id = str(db_message.id)
                                     
                                     logger.info(f"💾 Message {message_id} saved to database")
+                                    logger.info(f"   From: {user_id} To: {recipient_id}")
+                                    logger.info(f"   Content length: {len(encrypted_content)} chars")
+                                    logger.info(f"   Timestamp: {timestamp}")
                                 except Exception as inner_error:
                                     db.rollback()
                                     logger.error(f"❌ Database error: {inner_error}")
