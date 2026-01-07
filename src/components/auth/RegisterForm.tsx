@@ -106,10 +106,16 @@ const handleSubmit = async (e: React.FormEvent) => {
         });
 
         if (acceptResponse.ok) {
+          const acceptData = await acceptResponse.json();
           toast({
             title: "Invitation accepted!",
             description: `You and ${inviterName} are now connected.`,
           });
+          
+          // Store the inviter contact ID to auto-select in chat
+          if (acceptData.inviter_id) {
+            sessionStorage.setItem('autoSelectContact', acceptData.inviter_id);
+          }
         } else {
           const error = await acceptResponse.json();
           console.error('Failed to accept invitation:', error);

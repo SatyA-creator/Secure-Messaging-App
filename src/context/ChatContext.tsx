@@ -381,6 +381,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchContactsFromAPI]);
 
+  // Auto-select contact from invitation acceptance
+  useEffect(() => {
+    const autoSelectContactId = sessionStorage.getItem('autoSelectContact');
+    if (autoSelectContactId && contacts.length > 0 && contacts.some(c => c.id === autoSelectContactId)) {
+      console.log('Auto-selecting contact from invitation:', autoSelectContactId);
+      sessionStorage.removeItem('autoSelectContact');
+      selectContact(autoSelectContactId);
+    }
+  }, [contacts, selectContact]);
+
   const selectContact = useCallback(async (contactId: string) => {
     setSelectedContactId(contactId);
     setSelectedGroupId(null);

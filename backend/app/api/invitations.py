@@ -77,6 +77,7 @@ async def verify_invitation(token: str, db: Session = Depends(get_db)):
     inviter = db.query(User).filter(User.id == invitation.inviter_id).first()
     
     return {
+        "inviter_id": str(invitation.inviter_id),
         "inviter_name": inviter.username,
         "inviter_avatar": inviter.avatar_url if hasattr(inviter, 'avatar_url') else None,
         "invitee_email": invitation.invitee_email
@@ -88,9 +89,14 @@ async def accept_invitation(request: AcceptInvitationRequest, db: Session = Depe
     try:
         invitation = InvitationService.accept_invitation(db, request.token, request.new_user_id)
         
+        # Get inviter details to return
+        inviter = db.query(User).filter(User.id == invitation.inviter_id).first()
+        
         return {
             "status": "success",
-            "message": "Invitation accepted and contact added"
+            "message": "Invitation accepted and contact added",
+            "inviter_id": str(invitation.inviter_id),
+            "inviter_name": inviter.username if inviter else None
         }
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

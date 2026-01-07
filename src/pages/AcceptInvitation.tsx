@@ -77,11 +77,19 @@ export function AcceptInvitation() {
         throw new Error(errorData.detail || 'Failed to accept invitation');
       }
 
+      const data = await response.json();
+      const inviterId = data.inviter_id;
+
       setAccepted(true);
       toast({
         title: "Invitation accepted!",
         description: `You and ${inviterName} are now connected.`,
       });
+
+      // Store the inviter contact ID to auto-select in chat
+      if (inviterId) {
+        sessionStorage.setItem('autoSelectContact', inviterId);
+      }
 
       // Redirect to chat after 1.5 seconds
       setTimeout(() => navigate('/'), 1500);
