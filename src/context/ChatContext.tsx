@@ -72,6 +72,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const contactsData = await response.json();
       console.log('Fetched contacts from API:', contactsData);
       console.log('Number of contacts:', contactsData.length);
+      
+      // Log each contact's details
+      contactsData.forEach((c: any, index: number) => {
+        console.log(`Contact ${index + 1}:`, {
+          id: c.id,
+          contact_id: c.contact_id,
+          contact_user_id: c.contact_user_id,
+          contact_username: c.contact_username,
+          contact_email: c.contact_email,
+        });
+      });
 
       // Transform API contacts to Contact type
       const apiContacts: Contact[] = contactsData.map((c: any) => ({
@@ -84,8 +95,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : new Date(),
         unreadCount: 0,
       }));
-
-      console.log('Transformed contacts:', apiContacts);
+      
+      console.log('Transformed contacts:');
+      apiContacts.forEach((contact, index) => {
+        console.log(`  Contact ${index + 1}: ID=${contact.id}, username=${contact.username}, email=${contact.email}`);
+      });
       setContacts(apiContacts);
 
       // Initialize empty conversations for each contact

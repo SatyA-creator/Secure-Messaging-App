@@ -68,8 +68,11 @@ async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(ge
         User, Contact.contact_id == User.id
     ).filter(Contact.user_id == user_id).all()
     
+    print(f"\n👥 Found {len(contacts)} contacts for user {user_id}")
+    
     results = []
     for contact, user in contacts:
+        print(f"   Contact: contact_id={contact.contact_id}, username={user.username}, email={user.email}")
         results.append(ContactResponse(
             id=contact.id,
             user_id=contact.user_id,
@@ -83,6 +86,7 @@ async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(ge
             contact_last_seen=user.last_seen
         ))
     
+    print(f"   Returning {len(results)} contact responses")
     return results
 
 @router.get("/all-users", response_model=List[ContactResponse])
