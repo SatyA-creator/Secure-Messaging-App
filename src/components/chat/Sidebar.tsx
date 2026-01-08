@@ -163,36 +163,41 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
       )}
 
       {/* Groups List */}
-      {groups.length > 0 && (
-        <div className="p-4 border-b border-border">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
-            Groups ({groups.length})
-          </h3>
+      <div className="p-3 md:p-4 border-b border-border">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3 px-1">
+          Group Chats ({groups.length})
+        </h3>
+        {groups.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-3 px-1">
+            No groups yet. Create one to get started!
+          </p>
+        ) : (
           <div className="space-y-1">
             {groups.map(group => (
               <button
                 key={group.id}
-                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors text-left"
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-all duration-200 text-left group hover:shadow-sm border border-transparent hover:border-border"
                 onClick={() => {
                   console.log('Selecting group:', group);
                   selectGroup(group.id);
                   if (onSelectContact) onSelectContact();
                 }}
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-md group-hover:shadow-lg transition-shadow">
                   {group.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{group.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {group.description || `${group.memberCount || 0} members`}
+                  <div className="font-semibold truncate text-sm">{group.name}</div>
+                  <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    <span>{group.description || `${group.memberCount || 0} members`}</span>
                   </div>
                 </div>
               </button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Contacts */}
       <ContactList />
