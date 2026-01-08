@@ -33,7 +33,10 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
+    console.log('🔄 Sidebar useEffect triggered, user:', user?.id);
+    
     if (user) {
+      console.log('✅ User is authenticated, loading groups...');
       loadGroups();
       
       // Listen for group-related WebSocket events
@@ -56,26 +59,40 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         wsService.off('added_to_group', handleGroupUpdate);
         wsService.off('group_updated', handleGroupUpdate);
       };
+    } else {
+      console.log('⚠️ User not authenticated yet, skipping group load');
     }
   }, [user]);
 
   const loadGroups = async () => {
     try {
       console.log('📋 Loading groups for user:', user?.id);
+      console.log('🔍 Making API call to /groups...');
+      
       const response = await api.get('/groups');
-      console.log('✅ Groups loaded successfully:', response.data);
+      
+      console.log('✅ API Response received');
+      console.log('📦 Response status:', response.status);
+      console.log('📦 Response data:', response.data);
       console.log('📊 Total groups:', response.data?.length || 0);
       
       // Ensure we have an array
       const groupsData = Array.isArray(response.data) ? response.data : [];
-      setGroups(groupsData);
       
-      if (groupsData.length === 0) {
+      if (groupsData.length > 0) {
+        console.log('✅ Groups found:', groupsData.map(g => g.name).join(', '));
+      } else {
         console.log('⚠️ No groups found for this user');
       }
+      
+      setGroups(groupsData);
+      console.log('✅ Groups state updated, count:', groupsData.length);
+      
     } catch (err: any) {
       console.error('❌ Error loading groups:', err);
-      console.error('Error details:', err.response?.data || err.message);
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
+      console.error('Error message:', err.message);
       setGroups([]);
     }
   };
