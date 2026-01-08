@@ -32,10 +32,11 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const [groups, setGroups] = useState<any[]>([]);
   const isAdmin = user?.role === 'admin';
 
+  // Load groups when component mounts and user changes
   useEffect(() => {
     console.log('🔄 Sidebar useEffect triggered, user:', user?.id);
     
-    if (user) {
+    if (user?.id) {
       console.log('✅ User is authenticated, loading groups...');
       loadGroups();
       
@@ -62,7 +63,7 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
     } else {
       console.log('⚠️ User not authenticated yet, skipping group load');
     }
-  }, [user]);
+  }, [user?.id]); // Depend on user.id instead of user object
 
   const loadGroups = async () => {
     try {
