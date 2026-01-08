@@ -61,26 +61,39 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
 
   const loadGroups = async () => {
     try {
-      console.log('Loading groups...');
+      console.log('📋 Loading groups for user:', user?.id);
       const response = await api.get('/groups');
-      console.log('Groups loaded:', response.data);
-      setGroups(response.data || []);
-    } catch (err) {
-      console.error('Error loading groups:', err);
+      console.log('✅ Groups loaded successfully:', response.data);
+      console.log('📊 Total groups:', response.data?.length || 0);
+      
+      // Ensure we have an array
+      const groupsData = Array.isArray(response.data) ? response.data : [];
+      setGroups(groupsData);
+      
+      if (groupsData.length === 0) {
+        console.log('⚠️ No groups found for this user');
+      }
+    } catch (err: any) {
+      console.error('❌ Error loading groups:', err);
+      console.error('Error details:', err.response?.data || err.message);
       setGroups([]);
     }
   };
 
   const handleGroupCreated = (newGroup: any) => {
-    console.log('Group created:', newGroup);
-    // Don't add optimistically, just reload from server
-    loadGroups();
-    // Select the newly created group
-    if (newGroup?.id) {
-      setTimeout(() => {
-        selectGroup(newGroup.id);
-      }, 500);
-    }
+    console.log('🎉 Group created:', newGroup);
+    
+    // Immediately reload groups from server
+    loadGroups().then(() => {
+      console.log('✅ Groups reloaded after creation');
+      // Select the newly created group after reload completes
+      if (newGroup?.id) {
+        setTimeout(() => {
+          console.log('🎯 Selecting newly created group:', newGroup.id);
+          selectGroup(newGroup.id);
+        }, 300);
+      }
+    });
   };
 
   return (

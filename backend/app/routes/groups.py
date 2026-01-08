@@ -19,12 +19,17 @@ async def create_group(
     db: Session = Depends(get_db)
 ):
     """Create new group (only creator becomes admin)"""
+    print(f"🎨 Creating group '{name}' for user {current_user.id}")
+    
     group = GroupService.create_group(
         db,
         admin_id=current_user.id,
         name=name,
         description=description
     )
+    
+    print(f"✅ Group created with ID: {group.id}")
+    print(f"📤 Sending WebSocket notification to {current_user.id}")
     
     # Notify the creator via WebSocket
     await manager.send_personal_message(str(current_user.id), {
@@ -34,6 +39,8 @@ async def create_group(
         "description": group.description,
         "admin_id": str(group.admin_id)
     })
+    
+    print(f"✅ WebSocket notification sent")
     
     return {
         "group_id": str(group.id),
@@ -120,7 +127,11 @@ async def get_user_groups(
     db: Session = Depends(get_db)
 ):
     """Get all groups the current user is a member of"""
+    print(f"📋 Fetching groups for user: {current_user.id}")
     groups = GroupService.get_user_groups(db, user_id=current_user.id)
+    print(f"✅ Found {len(groups)} groups for user {current_user.id}")
+    if groups:
+        print(f"   Groups: {[g['name'] for g in groups]}")
     return groups
 
 @router.get("/{group_id}")

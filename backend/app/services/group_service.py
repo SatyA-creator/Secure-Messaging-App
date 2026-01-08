@@ -189,8 +189,14 @@ class GroupService:
             GroupMember.user_id == user_id
         ).all()
         
-        return [
-            {
+        result = []
+        for group in groups:
+            # Count total members in this group
+            member_count = db.query(GroupMember).filter(
+                GroupMember.group_id == group.Group.id
+            ).count()
+            
+            result.append({
                 "id": str(group.Group.id),
                 "name": group.Group.name,
                 "description": group.Group.description,
@@ -198,9 +204,11 @@ class GroupService:
                 "admin_id": str(group.Group.admin_id),
                 "is_encrypted": group.Group.is_encrypted,
                 "role": group.GroupMember.role,
+                "memberCount": member_count,
                 "created_at": group.Group.created_at
-            } for group in groups
-        ]
+            })
+        
+        return result
     
     @staticmethod
     def send_group_message(

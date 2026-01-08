@@ -126,8 +126,9 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
       await Promise.all(memberPromises);
       console.log('✅ All members added to group');
 
-      // Notify parent component
+      // Notify parent component BEFORE closing
       if (onGroupCreated) {
+        console.log('📢 Notifying parent component about group creation');
         onGroupCreated({
           id: groupData.group_id,
           name: groupData.name,
@@ -138,6 +139,9 @@ export function CreateGroupDialog({ onClose, onGroupCreated }: CreateGroupDialog
         });
       }
 
+      // Small delay to ensure callback executes
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       onClose();
     } catch (err: any) {
       console.error('Error creating group:', err);
