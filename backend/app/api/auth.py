@@ -168,6 +168,7 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
         avatar_url=current_user.avatar_url,
         bio=current_user.bio,
         is_verified=current_user.is_verified,
+        role=current_user.role,  # ✅ Added role field
         created_at=current_user.created_at
     )
 

@@ -96,19 +96,26 @@ const apiService = {
   },
   
   getProfile: async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to get profile');
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Profile fetch failed:', response.status, errorText);
+        throw new Error(`Failed to get profile: ${response.status}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('getProfile error:', error);
+      throw error;
     }
-    
-    return response.json();
   },
 };
 
@@ -186,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const storedRole = localStorage.getItem('userRole');
           const roleToUse = storedRole || userProfile.role || 'user';
           
+          console.log('✅ Token verified successfully');
           console.log('Role from API:', userProfile.role);
           console.log('Role from localStorage:', storedRole);
           console.log('Final role (localStorage priority):', roleToUse);
@@ -207,15 +215,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           
-          console.log('Auth restored from token');
-          console.log('User object:', user);
-          console.log('User role final:', user.role);
+          console.log('✅ Auth restored from token');
+          console.log('User:', user.username, 'Role:', user.role);
         } catch (error) {
-          console.log('Token verification failed:', error);
+          console.log('❌ Token verification failed:', error);
+          console.log('Clearing invalid token and redirecting to login');
           removeToken();
+          localStorage.removeItem('userRole');
           setState(prev => ({ ...prev, isLoading: false }));
         }
       } else {
+        console.log('No stored token found');
         setState(prev => ({ ...prev, isLoading: false }));
       }
     };

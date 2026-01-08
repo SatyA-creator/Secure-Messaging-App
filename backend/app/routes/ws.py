@@ -4,9 +4,12 @@ from app.database import get_db
 from app.websocket_manager import manager
 from app.services.auth_service import AuthService
 from app.services.message_service import MessageService
+from app.services.group_service import GroupService
 from app.middleware.auth import get_current_user
 import json
 from datetime import datetime
+from uuid import UUID
+import uuid as uuid_module
 
 router = APIRouter(tags=["websocket"])
 
@@ -128,29 +131,53 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             
             elif data.get("type") == "group_message":
                 # Group message
+                from app.models.group import GroupMessage, GroupMember
+                
                 group_id = data.get("group_id")
                 encrypted_content = data.get("encrypted_content")
                 encrypted_session_keys = data.get("encrypted_session_keys")  # dict: user_id -> key
                 
-                # Save group message
-                message = MessageService.send_group_message(
-                    db=db,
-                    sender_id=user_id,
-                    group_id=group_id,
-                    encrypted_content=encrypted_content,
-                    encrypted_session_keys=encrypted_session_keys
+                print(f"💬 Processing group message for group {group_id}")
+                print(f"   Sender: {user_id}")
+                print(f"   Content: {encrypted_content}")
+                
+                # Verify sender is member of the group
+                member = db.query(GroupMember).filter(
+                    (GroupMember.group_id == UUID(group_id)) &
+                    (GroupMember.user_id == UUID(user_id))
+                ).first()
+                
+                if not member:
+                    print(f"❌ User {user_id} not a member of group {group_id}")
+                    continue
+                
+                # Save group message to database
+                new_message = GroupMessage(
+                    id=uuid_module.uuid4(),
+                    group_id=UUID(group_id),
+                    sender_id=UUID(user_id),
+                    encrypted_content=str(encrypted_content).encode() if isinstance(encrypted_content, str) else encrypted_content,
+                    encrypted_session_key=b"session_key"  # Simplified for now
                 )
                 
-                # Send to all group members
+                db.add(new_message)
+                db.commit()
+                db.refresh(new_message)
+                
+                print(f"✅ Group message saved with ID: {new_message.id}")
+                
+                # Send to all group members via WebSocket
                 await manager.send_to_group(group_id, {
                     "type": "new_group_message",
-                    "message_id": str(message.id),
+                    "message_id": str(new_message.id),
                     "group_id": group_id,
                     "sender_id": user_id,
                     "encrypted_content": encrypted_content,
                     "encrypted_session_keys": encrypted_session_keys,
-                    "timestamp": message.created_at.isoformat()
+                    "timestamp": new_message.created_at.isoformat()
                 })
+                
+                print(f"✅ Group message broadcast complete")
     
     except Exception as e:
         print(f"WebSocket error: {e}")

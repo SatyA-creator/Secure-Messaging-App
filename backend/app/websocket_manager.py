@@ -66,10 +66,34 @@ class ConnectionManager:
                 self.disconnect(user_id)
     
     async def send_to_group(self, group_id: str, message: dict):
-        """Send message to all users in a group"""
-        if group_id in self.room_members:
-            for user_id in self.room_members[group_id]:
-                await self.send_personal_message(user_id, message)
+        """Send message to all users in a group - queries DB for members"""
+        from app.database import SessionLocal
+        from app.models.group import GroupMember
+        from uuid import UUID
+        
+        # Get group members from database
+        db = SessionLocal()
+        try:
+            members = db.query(GroupMember).filter(
+                GroupMember.group_id == UUID(group_id)
+            ).all()
+            
+            print(f"📤 Sending to group {group_id}: {len(members)} members")
+            
+            # Send to all online members
+            sent_count = 0
+            for member in members:
+                member_id = str(member.user_id)
+                if member_id in self.active_connections:
+                    await self.send_personal_message(member_id, message)
+                    sent_count += 1
+                    print(f"  ✅ Sent to {member_id}")
+                else:
+                    print(f"  ⏸️ Member {member_id} offline")
+            
+            print(f"✅ Sent group message to {sent_count}/{len(members)} online members")
+        finally:
+            db.close()
     
     def add_user_to_room(self, user_id: str, room_id: str):
         """Add user to room (group)"""
