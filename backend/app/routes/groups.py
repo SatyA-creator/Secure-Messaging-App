@@ -7,6 +7,7 @@ from app.database import get_db
 from app.api.auth import get_current_user
 from app.services.group_service import GroupService
 from app.models.user import User
+from app.websocket_manager import manager
 
 router = APIRouter()
 
@@ -24,6 +25,15 @@ async def create_group(
         name=name,
         description=description
     )
+    
+    # Notify the creator via WebSocket
+    await manager.send_personal_message(str(current_user.id), {
+        "type": "group_created",
+        "group_id": str(group.id),
+        "name": group.name,
+        "description": group.description,
+        "admin_id": str(group.admin_id)
+    })
     
     return {
         "group_id": str(group.id),
@@ -47,6 +57,27 @@ async def add_member_to_group(
         user_id=user_id,
         added_by=current_user.id
     )
+    
+    # Get group details for notification
+    from app.models.group import Group
+    group = db.query(Group).filter(Group.id == group_id).first()
+    
+    # Notify the added user via WebSocket that they've been added to a group
+    await manager.send_personal_message(str(user_id), {
+        "type": "added_to_group",
+        "group_id": str(group_id),
+        "group_name": group.name if group else "Group",
+        "added_by": str(current_user.id),
+        "role": member.role
+    })
+    
+    # Also notify the admin who added the member
+    await manager.send_personal_message(str(current_user.id), {
+        "type": "group_updated",
+        "group_id": str(group_id),
+        "action": "member_added",
+        "user_id": str(user_id)
+    })
     
     return {
         "message": "User added to group successfully",

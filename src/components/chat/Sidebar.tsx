@@ -17,6 +17,7 @@ import { ManageUsers } from './ManageUsers';
 import { CreateGroupDialog } from './CreateGroupDialog';
 import { Badge } from '@/components/ui/badge';
 import api from '@/config/api';
+import WebSocketService from '@/lib/websocket';
 
 interface SidebarProps {
   onSelectContact?: () => void;
@@ -34,6 +35,27 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   useEffect(() => {
     if (user) {
       loadGroups();
+      
+      // Listen for group-related WebSocket events
+      const wsService = WebSocketService.getInstance();
+      
+      const handleGroupUpdate = (data: any) => {
+        console.log('🔔 Received group update notification:', data);
+        // Reload groups when user is added to a group or group is created
+        loadGroups();
+      };
+      
+      // Register listeners for group events
+      wsService.on('group_created', handleGroupUpdate);
+      wsService.on('added_to_group', handleGroupUpdate);
+      wsService.on('group_updated', handleGroupUpdate);
+      
+      // Cleanup listeners on unmount
+      return () => {
+        wsService.off('group_created', handleGroupUpdate);
+        wsService.off('added_to_group', handleGroupUpdate);
+        wsService.off('group_updated', handleGroupUpdate);
+      };
     }
   }, [user]);
 

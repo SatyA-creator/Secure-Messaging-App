@@ -89,13 +89,11 @@ export default function GroupChat({ group, currentUser }) {
         }
       });
 
-      // Send via WebSocket
+      // Send via WebSocket - don't wrap in payload, wsService.send() does that automatically
       wsService.send('group_message', {
-        payload: {
-          group_id: group.id,
-          encrypted_content: inputMessage, // Send plain text for now
-          encrypted_session_keys: encryptedSessionKeys
-        }
+        group_id: group.id,
+        encrypted_content: inputMessage, // Send plain text for now
+        encrypted_session_keys: encryptedSessionKeys
       });
 
       // Add to local messages optimistically
