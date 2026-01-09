@@ -9,7 +9,7 @@ from .contacts import router as contacts_router
 from .users import router as users_router
 from .invitations import router as invitations_router
 from .admin import router as admin_router
-from app.routes.groups import router as groups_router
+from .groups import router as groups_router
 
 # Include all routers
 router.include_router(auth_router, prefix="/auth", tags=["authentication"])
