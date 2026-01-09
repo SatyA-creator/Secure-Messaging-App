@@ -44,7 +44,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# ✅ CREATE APP FIRST - BEFORE USING @app.websocket
+# ✅ CREATE APP FIRST
 app = FastAPI(
     title="Secure Messaging API",
     description="End-to-end encrypted messaging application",
@@ -63,6 +63,7 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+
 
 # Initialize database and start email queue worker
 @app.on_event("startup")
@@ -84,30 +85,16 @@ async def startup():
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📧 Frontend URL: {settings.FRONTEND_URL}")
     logger.info(f"🔐 CORS Origins: {settings.CORS_ORIGINS}")
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Cleanup on shutdown"""
-    logger.info("🛑 Application shutting down...")
-
-
-    @app.on_event("startup")
-async def startup():
-    """Initialize database and start background tasks"""
-    logger.info("🚀 Application starting...")
     
-    # ... your existing startup code ...
-    
-    # ✅ ADD THIS DEBUG CODE
+    # ✅ Debug: Print all registered routes
     logger.info("\n" + "="*80)
-    logger.info("🔍 DEBUGGING: All Registered Routes")
+    logger.info("🔍 ALL REGISTERED ROUTES:")
     logger.info("="*80)
-    
     for route in app.routes:
         if hasattr(route, 'methods') and hasattr(route, 'path'):
             methods = ', '.join(sorted(route.methods - {'OPTIONS', 'HEAD'}))
-            if methods:  # Skip empty methods
-                logger.info(f"  {methods:15} {route.path}")
+            if methods:
+                logger.info(f"  {methods:20} {route.path}")
     
     logger.info("="*80)
     logger.info("🔍 Looking specifically for groups routes:")
@@ -124,6 +111,12 @@ async def startup():
     logger.info("="*80 + "\n")
 
 
+@app.on_event("shutdown")
+async def shutdown():
+    """Cleanup on shutdown"""
+    logger.info("🛑 Application shutting down...")
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -134,10 +127,12 @@ async def root():
         "environment": settings.ENVIRONMENT
     }
 
+
 # CORS preflight handler for debugging
 @app.options("/{path:path}")
 async def options_handler(path: str):
     return {"message": "OK"}
+
 
 # Health check endpoint
 @app.get("/health")
@@ -148,21 +143,19 @@ async def health_check():
         "database": "connected"
     }
 
+
 # Favicon endpoint to prevent 405 errors
 @app.get("/favicon.ico")
 async def favicon():
     return {"message": "No favicon"}
 
-# ✅ NOW DEFINE WEBSOCKET ENDPOINT (AFTER APP IS CREATED)
+
+# ✅ WEBSOCKET ENDPOINT
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Query(...)):
-    """
-    WebSocket endpoint for real-time messaging with JWT authentication
-    user_id: The authenticated user's ID
-    token: JWT authentication token passed as query parameter
-    """
+    """WebSocket endpoint for real-time messaging with JWT authentication"""
     try:
-        # ✅ Verify JWT token
+        # Verify JWT token
         payload = AuthService.verify_token(token)
         token_user_id = payload.get("sub")
         
@@ -172,7 +165,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
         
         if token_user_id != user_id:
             logger.error(f"❌ Token mismatch! URL={user_id}, Token={token_user_id}")
-            await websocket.close(code=1008)  # Policy violation
+            await websocket.close(code=1008)
             return
         
         logger.info(f"✅ User {user_id} authenticated with JWT")
@@ -201,44 +194,28 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                     payload = message_data.get("payload", {})
                     
                     logger.info(f"📨 WebSocket message from {user_id}: {message_type}")
-                    logger.info(f"   Full payload: {payload}")
                     
                     if message_type == "message":
-                        logger.info(f"🔍 Processing message type")
-                        # Handle real-time message sending
+                        # Handle direct messages
                         recipient_id = payload.get("recipient_id")
                         encrypted_content = payload.get("encrypted_content")
                         message_id = payload.get("message_id")
                         encrypted_session_key = payload.get("encrypted_session_key")
                         
-                        logger.info(f"   recipient_id: {recipient_id}")
-                        logger.info(f"   message_id: {message_id}")
-                        logger.info(f"   content: {encrypted_content}")
-                        
                         if recipient_id:
-                            # ✅ CRITICAL FIX: Save message to database
                             try:
                                 from app.models.message import Message
                                 from app.database import get_db
                                 from uuid import UUID
                                 import uuid as uuid_module
-                                import traceback
                                 
-                                # Get database session
                                 db = next(get_db())
                                 
                                 try:
-                                    # Convert to UUID objects
                                     sender_uuid = UUID(user_id)
                                     recipient_uuid = UUID(recipient_id)
                                     msg_uuid = UUID(message_id) if message_id else uuid_module.uuid4()
                                     
-                                    logger.info(f"🔍 Creating message with UUIDs:")
-                                    logger.info(f"   sender_id: {sender_uuid} (type: {type(sender_uuid)})")
-                                    logger.info(f"   recipient_id: {recipient_uuid} (type: {type(recipient_uuid)})")
-                                    logger.info(f"   message_id: {msg_uuid} (type: {type(msg_uuid)})")
-                                    
-                                    # Create and save message
                                     db_message = Message(
                                         id=msg_uuid,
                                         sender_id=sender_uuid,
@@ -250,27 +227,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     db.commit()
                                     db.refresh(db_message)
                                     
-                                    # Verify what was saved
-                                    logger.info(f"✅ Message saved - verifying:")
-                                    logger.info(f"   DB sender_id: {db_message.sender_id} (type: {type(db_message.sender_id)})")
-                                    logger.info(f"   DB recipient_id: {db_message.recipient_id} (type: {type(db_message.recipient_id)})")
-                                    
-                                    # Use database timestamp for consistency
                                     timestamp = db_message.created_at.isoformat()
                                     message_id = str(db_message.id)
                                     
                                     logger.info(f"💾 Message {message_id} saved to database")
-                                    logger.info(f"   Content: {encrypted_content[:50]}...")
-                                    logger.info(f"   Timestamp: {timestamp}")
                                 except Exception as inner_error:
                                     db.rollback()
                                     logger.error(f"❌ Database error: {inner_error}")
-                                    logger.error(f"Traceback: {traceback.format_exc()}")
                                     raise
                                 finally:
                                     db.close()
                             except Exception as db_error:
-                                logger.error(f"❌ Failed to save message to database: {db_error}")
+                                logger.error(f"❌ Failed to save message: {db_error}")
                                 timestamp = datetime.now().isoformat()
                             
                             # Forward message to recipient
@@ -299,35 +267,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                             
                             logger.info(f"📨 Message forwarded from {user_id} to {recipient_id}")
                     
-                    elif message_type == "delivery_confirmation":
-                        # Handle delivery confirmation
-                        sender_id = payload.get("sender_id")
-                        message_id = payload.get("message_id")
-                        if sender_id:
-                            await manager.send_personal_message(
-                                json.dumps({
-                                    "type": "message_delivered",
-                                    "message_id": message_id,
-                                    "timestamp": datetime.now().isoformat()
-                                }),
-                                sender_id
-                            )
-                    
-                    elif message_type == "typing":
-                        # Handle typing indicator
-                        recipient_id = payload.get("recipient_id")
-                        if recipient_id:
-                            await manager.send_personal_message(
-                                json.dumps({
-                                    "type": "typing",
-                                    "sender_id": user_id,
-                                    "is_typing": payload.get("is_typing", False)
-                                }),
-                                recipient_id
-                            )
-                    
                     elif message_type == "group_message":
-                        # Handle group message sending
+                        # Handle group messages
                         group_id = payload.get("group_id")
                         encrypted_content = payload.get("encrypted_content")
                         encrypted_session_keys = payload.get("encrypted_session_keys", {})
@@ -339,16 +280,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 from uuid import UUID
                                 import uuid as uuid_module
                                 
-                                # Get database session
                                 db = next(get_db())
                                 
                                 try:
-                                    # Get all group members
                                     members = db.query(GroupMember).filter(
                                         GroupMember.group_id == UUID(group_id)
                                     ).all()
                                     
-                                    # Create message
                                     db_message = GroupMessage(
                                         id=uuid_module.uuid4(),
                                         group_id=UUID(group_id),
@@ -363,9 +301,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     message_id = str(db_message.id)
                                     timestamp = db_message.created_at.isoformat()
                                     
-                                    logger.info(f"💾 Group message {message_id} saved to database")
+                                    logger.info(f"💾 Group message {message_id} saved")
                                     
-                                    # Send to all group members except sender
+                                    # Send to all members except sender
                                     for member in members:
                                         if str(member.user_id) != user_id:
                                             await manager.send_personal_message(
@@ -393,8 +331,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                         user_id
                                     )
                                     
-                                    logger.info(f"📨 Group message forwarded from {user_id} to group {group_id}")
-                                    
+                                    logger.info(f"📨 Group message forwarded to group {group_id}")
                                 except Exception as inner_error:
                                     db.rollback()
                                     logger.error(f"❌ Database error: {inner_error}")
@@ -404,13 +341,36 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                             except Exception as db_error:
                                 logger.error(f"❌ Failed to save group message: {db_error}")
                     
+                    elif message_type == "delivery_confirmation":
+                        sender_id = payload.get("sender_id")
+                        message_id = payload.get("message_id")
+                        if sender_id:
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "message_delivered",
+                                    "message_id": message_id,
+                                    "timestamp": datetime.now().isoformat()
+                                }),
+                                sender_id
+                            )
+                    
+                    elif message_type == "typing":
+                        recipient_id = payload.get("recipient_id")
+                        if recipient_id:
+                            await manager.send_personal_message(
+                                json.dumps({
+                                    "type": "typing",
+                                    "sender_id": user_id,
+                                    "is_typing": payload.get("is_typing", False)
+                                }),
+                                recipient_id
+                            )
+                    
                     elif message_type == "contact_added":
-                        # Notify the inviter (admin) about the new contact
-                        inviter_id = payload.get("inviter_id") 
+                        inviter_id = payload.get("inviter_id")
                         contact_id = payload.get("contact_id")
                         
                         if inviter_id:
-                            # Send notification to inviter (usually the admin)
                             await manager.send_personal_message(
                                 json.dumps({
                                     "type": "contact_added",
@@ -424,22 +384,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 }),
                                 inviter_id
                             )
-                            logger.info(f"👥 Contact added notification sent to {inviter_id} about user {contact_id}")
+                            logger.info(f"👥 Contact added notification sent")
                         
-                except json.JSONDecodeError:
-                    logger.error(f"❌ Invalid JSON received from WebSocket (user: {user_id})")
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ JSON decode error: {e}")
                 except Exception as e:
-                    logger.error(f"❌ Error processing WebSocket message: {str(e)}")
-                    logger.error(f"   Message data: {data}")
-                    logger.error(f"   Full traceback: {traceback.format_exc()}")
+                    logger.error(f"❌ Error processing message: {str(e)}")
                     import traceback
                     traceback.print_exc()
                     
         except WebSocketDisconnect:
             manager.disconnect(user_id)
-            logger.info(f"❌ User {user_id} disconnected from WebSocket")
+            logger.info(f"❌ User {user_id} disconnected")
         except Exception as e:
             logger.error(f"❌ WebSocket error for user {user_id}: {str(e)}")
             manager.disconnect(user_id)
@@ -449,13 +405,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
         await websocket.close(code=1008)
     
     finally:
-        # Cleanup and notify others user went offline
         manager.disconnect(user_id)
         await manager.broadcast(json.dumps({
             "type": "user_offline",
             "user_id": user_id,
             "timestamp": datetime.now().isoformat()
         }))
-        logger.info(f"❌ User {user_id} disconnected")
+
 
 logger.info(f"✅ FastAPI app initialized in {settings.ENVIRONMENT} mode")

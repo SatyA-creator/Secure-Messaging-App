@@ -70,7 +70,7 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
       console.log('📋 Loading groups for user:', user?.id);
       console.log('🔍 Making API call to /groups...');
       
-      const response = await api.get('/groups');
+      const response = await api.get('/groups/');
       
       console.log('✅ API Response received');
       console.log('📦 Response status:', response.status);
