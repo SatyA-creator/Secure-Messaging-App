@@ -90,6 +90,40 @@ async def shutdown():
     """Cleanup on shutdown"""
     logger.info("🛑 Application shutting down...")
 
+
+    @app.on_event("startup")
+async def startup():
+    """Initialize database and start background tasks"""
+    logger.info("🚀 Application starting...")
+    
+    # ... your existing startup code ...
+    
+    # ✅ ADD THIS DEBUG CODE
+    logger.info("\n" + "="*80)
+    logger.info("🔍 DEBUGGING: All Registered Routes")
+    logger.info("="*80)
+    
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            methods = ', '.join(sorted(route.methods - {'OPTIONS', 'HEAD'}))
+            if methods:  # Skip empty methods
+                logger.info(f"  {methods:15} {route.path}")
+    
+    logger.info("="*80)
+    logger.info("🔍 Looking specifically for groups routes:")
+    
+    groups_routes = [r for r in app.routes if hasattr(r, 'path') and '/groups' in r.path]
+    if groups_routes:
+        for route in groups_routes:
+            if hasattr(route, 'methods'):
+                methods = ', '.join(sorted(route.methods - {'OPTIONS', 'HEAD'}))
+                logger.info(f"  ✅ {methods:15} {route.path}")
+    else:
+        logger.error("  ❌ NO /groups routes found!")
+    
+    logger.info("="*80 + "\n")
+
+
 # Root endpoint
 @app.get("/")
 async def root():
