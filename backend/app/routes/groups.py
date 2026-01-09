@@ -11,6 +11,36 @@ from app.websocket_manager import manager
 
 router = APIRouter()
 
+@router.get("/")
+async def get_user_groups(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all groups the current user is a member of"""
+    print(f"\n{'='*60}")
+    print(f"📋 GET /groups - Fetching groups for user: {current_user.id}")
+    print(f"   User email: {current_user.email}")
+    print(f"   User username: {current_user.username}")
+    
+    groups = GroupService.get_user_groups(db, user_id=current_user.id)
+    
+    print(f"✅ Query completed - Found {len(groups)} groups")
+    if groups:
+        for idx, group in enumerate(groups, 1):
+            print(f"   {idx}. {group['name']} (ID: {group['id']}, Members: {group.get('memberCount', '?')})")
+    else:
+        print(f"   ⚠️ No groups found - user might not be a member of any groups")
+        
+        # Debug: Check if user has any group memberships
+        from app.models.group import GroupMember
+        memberships = db.query(GroupMember).filter(GroupMember.user_id == current_user.id).all()
+        print(f"   🔍 Direct membership check: {len(memberships)} memberships found")
+        for m in memberships:
+            print(f"      - Group ID: {m.group_id}, Role: {m.role}")
+    
+    print(f"{'='*60}\n")
+    return groups
+
 @router.post("/create")
 async def create_group(
     name: str,
@@ -120,36 +150,6 @@ async def get_group_members(
     members = GroupService.get_group_members_with_details(db, group_id=group_id)
     
     return members
-
-@router.get("/")
-async def get_user_groups(
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get all groups the current user is a member of"""
-    print(f"\n{'='*60}")
-    print(f"📋 GET /groups - Fetching groups for user: {current_user.id}")
-    print(f"   User email: {current_user.email}")
-    print(f"   User username: {current_user.username}")
-    
-    groups = GroupService.get_user_groups(db, user_id=current_user.id)
-    
-    print(f"✅ Query completed - Found {len(groups)} groups")
-    if groups:
-        for idx, group in enumerate(groups, 1):
-            print(f"   {idx}. {group['name']} (ID: {group['id']}, Members: {group.get('memberCount', '?')})")
-    else:
-        print(f"   ⚠️ No groups found - user might not be a member of any groups")
-        
-        # Debug: Check if user has any group memberships
-        from app.models.group import GroupMember
-        memberships = db.query(GroupMember).filter(GroupMember.user_id == current_user.id).all()
-        print(f"   🔍 Direct membership check: {len(memberships)} memberships found")
-        for m in memberships:
-            print(f"      - Group ID: {m.group_id}, Role: {m.role}")
-    
-    print(f"{'='*60}\n")
-    return groups
 
 @router.get("/{group_id}")
 async def get_group_details(
