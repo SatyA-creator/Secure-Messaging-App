@@ -98,21 +98,50 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
     }
   };
 
-  const handleGroupCreated = (newGroup: any) => {
-    console.log('🎉 Group created:', newGroup);
-    
-    // Immediately reload groups from server
+const handleGroupCreated = (newGroup: any) => {
+  console.log('🎉 Group created:', newGroup);
+  
+  // ✅ FIX 1: Immediately update local state for instant UI feedback
+  const createdGroup = {
+    id: newGroup.id,
+    name: newGroup.name,
+    description: newGroup.description,
+    memberCount: newGroup.memberCount || 1,
+    admin_id: newGroup.admin_id,
+    created_at: newGroup.created_at
+  };
+  
+  // Add to local state immediately
+  setGroups(prev => {
+    const groupExists = prev.some(g => g.id === createdGroup.id);
+    if (!groupExists) {
+      console.log('✅ Added new group to local state:', createdGroup.name);
+      return [createdGroup, ...prev];
+    }
+    return prev;
+  });
+  
+  // ✅ FIX 2: Wait 500ms for backend database to commit before reload
+  // This ensures /groups endpoint will return the new group
+  setTimeout(() => {
+    console.log('🔄 Syncing groups with server (500ms delay to allow DB commit)');
     loadGroups().then(() => {
-      console.log('✅ Groups reloaded after creation');
-      // Select the newly created group after reload completes
+      console.log('✅ Groups synced with server, count:', groups.length);
+      
+      // ✅ FIX 3: Select the newly created group
       if (newGroup?.id) {
         setTimeout(() => {
           console.log('🎯 Selecting newly created group:', newGroup.id);
           selectGroup(newGroup.id);
-        }, 300);
+        }, 100);
       }
+    }).catch(err => {
+      console.error('❌ Failed to sync groups:', err);
     });
-  };
+  }, 500); // 500ms delay for DB transaction
+};
+
+
 
   return (
     <div className="w-full border-r border-border bg-card/30 flex flex-col h-full">

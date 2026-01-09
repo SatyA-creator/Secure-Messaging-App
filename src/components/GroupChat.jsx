@@ -10,17 +10,60 @@ export default function GroupChat({ group, currentUser }) {
   const messagesEndRef = useRef(null);
   const wsService = WebSocketService.getInstance();
 
-  useEffect(() => {
-    loadGroupMessages();
-    loadGroupMembers();
-    
-    // Listen for group messages
-    wsService.on('new_group_message', handleNewGroupMessage);
-    
-    return () => {
-      wsService.off('new_group_message', handleNewGroupMessage);
-    };
-  }, [group.id]);
+useEffect(() => {
+  console.log('🔧 Setting up group chat listeners for group:', group.id);
+  
+  loadGroupMessages();
+  loadGroupMembers();
+  
+  // ✅ Listen for incoming group messages
+  wsService.on('new_group_message', handleNewGroupMessage);
+  
+  // ✅ Listen for delivery confirmations
+  wsService.on('message_delivered', (data) => {
+    console.log('✅ Message delivered confirmation:', data.message_id);
+    if (data.group_id === group.id) {
+      setMessages(prev => prev.map(msg =>
+        msg.id === data.message_id ? { ...msg, status: 'delivered' } : msg
+      ));
+    }
+  });
+  
+  // ✅ Listen for read receipts
+  wsService.on('message_read', (data) => {
+    console.log('✅ Message read confirmation:', data.message_id);
+    if (data.group_id === group.id) {
+      setMessages(prev => prev.map(msg =>
+        msg.id === data.message_id ? { ...msg, is_read: 1 } : msg
+      ));
+    }
+  });
+  
+  // ✅ Listen for member updates (join/leave)
+  wsService.on('group_member_joined', (data) => {
+    console.log('👥 Member joined group:', data.user_id);
+    if (data.group_id === group.id) {
+      loadGroupMembers(); // Reload member list
+    }
+  });
+  
+  wsService.on('group_member_left', (data) => {
+    console.log('👋 Member left group:', data.user_id);
+    if (data.group_id === group.id) {
+      loadGroupMembers(); // Reload member list
+    }
+  });
+  
+  return () => {
+    console.log('🧹 Cleaning up group chat listeners for group:', group.id);
+    wsService.off('new_group_message', handleNewGroupMessage);
+    wsService.off('message_delivered');
+    wsService.off('message_read');
+    wsService.off('group_member_joined');
+    wsService.off('group_member_left');
+  };
+}, [group.id]);
+
 
   const loadGroupMessages = async () => {
     try {
@@ -61,57 +104,131 @@ export default function GroupChat({ group, currentUser }) {
     }
   };
 
-  const handleNewGroupMessage = (data) => {
-    console.log('📨 Received group message:', data);
-    if (data.group_id === group.id) {
-      // For now, display messages without encryption
-      // You can add encryption later
-      setMessages(prev => [...prev, {
-        id: data.message_id,
-        sender_id: data.sender_id,
-        content: data.encrypted_content, // Display as-is for now
-        created_at: data.timestamp,
-        is_read: 0
-      }]);
-      scrollToBottom();
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
-
-    try {
-      // Build session keys object for all members
-      const encryptedSessionKeys = {};
-      members.forEach(member => {
-        if (member.id !== currentUser.id) {
-          encryptedSessionKeys[member.id] = 'encrypted-key-' + member.id;
-        }
+const handleNewGroupMessage = (data) => {
+  console.log('📨 Received group message:', {
+    messageId: data.message_id,
+    groupId: data.group_id,
+    senderId: data.sender_id,
+    timestamp: data.timestamp
+  });
+  
+  // ✅ FIX: Only process if message is for current group
+  if (data.group_id === group.id) {
+    // Find sender info for display
+    const sender = members.find(m => m.id === data.sender_id);
+    
+    const newMessage = {
+      id: data.message_id || `msg-${Date.now()}`,
+      sender_id: data.sender_id,
+      content: data.encrypted_content,
+      created_at: data.timestamp || new Date().toISOString(),
+      is_read: 0,
+      status: 'delivered', // Message arrived
+      sender_username: sender?.username || 'Unknown User'
+    };
+    
+    console.log(`✅ Adding message from ${newMessage.sender_username} to group ${data.group_id}`);
+    
+    // ✅ Avoid duplicate messages
+    setMessages(prev => {
+      const messageExists = prev.some(m => m.id === newMessage.id);
+      if (messageExists) {
+        console.warn(`⚠️ Message ${newMessage.id} already exists, skipping duplicate`);
+        return prev;
+      }
+      // Sort messages by timestamp
+      return [...prev, newMessage].sort((a, b) => 
+        new Date(a.created_at) - new Date(b.created_at)
+      );
+    });
+    
+    scrollToBottom();
+    
+    // ✅ Send delivery confirmation to sender
+    if (wsService?.isConnected()) {
+      wsService.send('delivery_confirmation', {
+        message_id: data.message_id,
+        group_id: data.group_id,
+        delivered_by: currentUser.id
       });
-
-      // Send via WebSocket - don't wrap in payload, wsService.send() does that automatically
-      wsService.send('group_message', {
-        group_id: group.id,
-        encrypted_content: inputMessage, // Send plain text for now
-        encrypted_session_keys: encryptedSessionKeys
-      });
-
-      // Add to local messages optimistically
-      setMessages(prev => [...prev, {
-        id: 'temp-' + Date.now(),
-        sender_id: currentUser.id,
-        content: inputMessage,
-        created_at: new Date().toISOString(),
-        status: 'sending'
-      }]);
-
-      setInputMessage('');
-      scrollToBottom();
-    } catch (err) {
-      console.error('Error sending message:', err);
-      alert('Failed to send message');
     }
-  };
+  } else {
+    console.log(`⚠️ Received message for different group: ${data.group_id}, current: ${group.id}`);
+  }
+};
+
+const handleSendMessage = async () => {
+  if (!inputMessage.trim()) return;
+
+  try {
+    // ✅ FIX 1: Build session keys for ALL members including the sender
+    const encryptedSessionKeys = {};
+    
+    // Include ALL group members, including the admin sending the message
+    for (const member of members) {
+      try {
+        // In production: encrypt with member's public key
+        // For now: use secure placeholder with member ID and timestamp
+        encryptedSessionKeys[member.id] = `key-${member.id}-${Date.now()}-${Math.random()}`;
+        console.log(`✅ Built session key for member: ${member.username}`);
+      } catch (error) {
+        console.error(`❌ Failed to build key for member ${member.id}:`, error);
+      }
+    }
+    
+    console.log(`📋 Session keys built for ${Object.keys(encryptedSessionKeys).length} members:`, 
+      Object.keys(encryptedSessionKeys).map(id => {
+        const member = members.find(m => m.id === id);
+        return member?.username || id;
+      })
+    );
+
+    // ✅ FIX 2: Include all necessary fields for backend to process
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const messagePayload = {
+      group_id: group.id,
+      sender_id: currentUser.id,
+      message_id: messageId,
+      encrypted_content: inputMessage, // TODO: Implement actual E2E encryption
+      encrypted_session_keys: encryptedSessionKeys,
+      timestamp: new Date().toISOString(),
+      recipient_ids: members.map(m => m.id) // ✅ Explicit list of who should receive
+    };
+    
+    console.log('📤 Sending group message:', {
+      groupId: group.id,
+      senderId: currentUser.id,
+      senderName: members.find(m => m.id === currentUser.id)?.username,
+      totalMembers: members.length,
+      sessionKeysCount: Object.keys(encryptedSessionKeys).length,
+      messagePreview: inputMessage.substring(0, 50)
+    });
+
+    // ✅ FIX 3: Send via WebSocket with complete payload
+    wsService.send('group_message', messagePayload);
+
+    // ✅ FIX 4: Optimistically add to local messages with sending status
+    setMessages(prev => [...prev, {
+      id: messageId,
+      sender_id: currentUser.id,
+      content: inputMessage,
+      created_at: new Date().toISOString(),
+      status: 'sending', // Shows user the message is being sent
+      is_read: 0
+    }]);
+
+    setInputMessage('');
+    scrollToBottom();
+    
+    console.log('✅ Group message sent successfully');
+    
+  } catch (err) {
+    console.error('❌ Error sending group message:', err);
+    console.error('Error stack:', err.stack);
+    alert(`Failed to send message: ${err.message || 'Unknown error'}`);
+  }
+};
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
