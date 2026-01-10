@@ -1,6 +1,6 @@
 // API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://secure-messaging-app-production.up.railway.app';
-export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'wss://secure-messaging-app-production.up.railway.app';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://secure-messaging-app-backend.onrender.com';
+export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'wss://secure-messaging-app-backend.onrender.com';
 
 export const API_ENDPOINTS = {
   AUTH: {
