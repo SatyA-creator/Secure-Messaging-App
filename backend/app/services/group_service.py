@@ -156,15 +156,26 @@ class GroupService:
         db: Session,
         group_id: UUID
     ) -> list:
-        """Get all members of a group with user details"""
+        """Get all members of a group with user details INCLUDING admin"""
+        # ✅ FIX: Get the group to find admin
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            return []
+        
+        # Get members from GroupMember table
         members = db.query(GroupMember, User).join(
             User, GroupMember.user_id == User.id
         ).filter(
             GroupMember.group_id == group_id
         ).all()
         
-        return [
-            {
+        result = []
+        member_ids = set()
+        
+        # Add all members from GroupMember table
+        for member in members:
+            member_ids.add(str(member.User.id))
+            result.append({
                 "id": str(member.User.id),
                 "user_id": str(member.User.id),
                 "username": member.User.username,
@@ -174,8 +185,28 @@ class GroupService:
                 "avatar_url": member.User.avatar_url,
                 "role": member.GroupMember.role,
                 "joined_at": member.GroupMember.joined_at
-            } for member in members
-        ]
+            })
+        
+        # ✅ CRITICAL: Ensure admin is always included in the members list
+        admin_id = str(group.admin_id)
+        if admin_id not in member_ids:
+            # Admin not in GroupMember table, add them manually
+            admin_user = db.query(User).filter(User.id == group.admin_id).first()
+            if admin_user:
+                result.append({
+                    "id": str(admin_user.id),
+                    "user_id": str(admin_user.id),
+                    "username": admin_user.username,
+                    "email": admin_user.email,
+                    "full_name": admin_user.full_name,
+                    "public_key": admin_user.public_key,
+                    "avatar_url": admin_user.avatar_url,
+                    "role": "admin",
+                    "joined_at": group.created_at  # Use group creation time as admin join time
+                })
+                print(f"✅ Added admin {admin_user.username} to members list")
+        
+        return result
     
     @staticmethod
     def get_user_groups(

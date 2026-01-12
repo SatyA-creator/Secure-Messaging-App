@@ -102,11 +102,11 @@ class ConnectionManager:
     
     async def broadcast_to_group(self, group_id: str, message: dict):
         """
-        Send message to all members in a group
-        Queries database for current group members
+        Send message to all members in a group INCLUDING the admin
+        Queries database for current group members AND admin
         """
         from app.database import SessionLocal
-        from app.models.group import GroupMember
+        from app.models.group import GroupMember, Group
         from uuid import UUID
         
         db = SessionLocal()
@@ -118,26 +118,41 @@ class ConnectionManager:
                 print(f"❌ Invalid group_id format: {group_id}")
                 return
             
+            # ✅ FIX: Get the group to find admin_id
+            group = db.query(Group).filter(Group.id == group_uuid).first()
+            if not group:
+                print(f"❌ Group {group_id} not found")
+                return
+            
             # Get all group members from database
             members = db.query(GroupMember).filter(
                 GroupMember.group_id == group_uuid
             ).all()
             
-            print(f"📤 Broadcasting to group {group_id}: {len(members)} members")
+            # ✅ FIX: Build complete recipient list (members + admin)
+            recipient_ids = set()
             
-            # Send to all online members
+            # Add all members
+            for member in members:
+                recipient_ids.add(str(member.user_id))
+            
+            # ✅ CRITICAL: Always include the admin (they may not be in GroupMember table for their own group)
+            recipient_ids.add(str(group.admin_id))
+            
+            print(f"📤 Broadcasting to group {group_id}: {len(recipient_ids)} total recipients (admin + {len(members)} members)")
+            
+            # Send to all online recipients
             sent_count = 0
             offline_count = 0
             
-            for member in members:
-                member_id = str(member.user_id)
-                if member_id in self.active_connections:
-                    await self.send_personal_message(member_id, message)
+            for recipient_id in recipient_ids:
+                if recipient_id in self.active_connections:
+                    await self.send_personal_message(recipient_id, message)
                     sent_count += 1
-                    print(f"  ✅ Sent to {member_id}")
+                    print(f"  ✅ Sent to {recipient_id}")
                 else:
                     offline_count += 1
-                    print(f"  ⏸️ Member {member_id} offline, skipping")
+                    print(f"  ⏸️ User {recipient_id} offline, skipping")
             
             print(f"✅ Group broadcast complete: {sent_count} online, {offline_count} offline")
             
