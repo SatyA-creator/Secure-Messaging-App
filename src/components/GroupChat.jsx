@@ -388,26 +388,3 @@ const handleSendMessage = async () => {
     </div>
   );
 }
-                              {member.full_name || member.username}
-                              {isCurrentUser && <span className="text-gray-500"> (You)</span>}
-                            </p>
-                          </div>
-                          <p className="text-xs text-gray-500 truncate">{member.email || member.username}</p>
-                          {isAdmin && (
-                            <span className="inline-flex items-center text-xs bg-blue-500 text-white px-2 py-0.5 rounded mt-1">
-                              Admin
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
