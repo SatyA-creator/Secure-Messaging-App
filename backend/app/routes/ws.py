@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.websocket_manager import manager
 from app.services.auth_service import AuthService
-from app.services.message_service import MessageService
+# from app.services.message_service import MessageService  # TODO: Create this service
 from app.services.group_service import GroupService
 from app.middleware.auth import get_current_user
 import json
@@ -97,7 +97,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             elif data.get("type") == "delivery_confirmation":
                 # Message was delivered
                 message_id = data.get("message_id")
-                MessageService.mark_as_delivered(db, message_id)
+                # MessageService.mark_as_delivered(db, message_id)  # TODO: Implement
                 
                 # Notify sender
                 sender_id = data.get("sender_id")
@@ -110,7 +110,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             elif data.get("type") == "read_confirmation":
                 # Message was read
                 message_id = data.get("message_id")
-                MessageService.mark_as_read(db, message_id)
+                # MessageService.mark_as_read(db, message_id)  # TODO: Implement
                 
                 # Notify sender
                 sender_id = data.get("sender_id")

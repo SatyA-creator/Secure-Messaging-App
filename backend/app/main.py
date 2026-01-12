@@ -275,7 +275,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                         
                         if group_id:
                             try:
-                                from app.models.group import GroupMember, GroupMessage
+                                from app.models.group import GroupMember, GroupMessage, Group
                                 from app.database import get_db
                                 from uuid import UUID
                                 import uuid as uuid_module
@@ -283,10 +283,32 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 db = next(get_db())
                                 
                                 try:
+                                    # ✅ FIX: Get group to check admin
+                                    group = db.query(Group).filter(Group.id == UUID(group_id)).first()
+                                    
+                                    if not group:
+                                        logger.error(f"❌ Group {group_id} not found")
+                                        raise Exception(f"Group {group_id} not found")
+                                    
+                                    # ✅ FIX: Verify sender is admin OR member
+                                    is_admin = str(group.admin_id) == user_id
+                                    is_member = db.query(GroupMember).filter(
+                                        GroupMember.group_id == UUID(group_id),
+                                        GroupMember.user_id == UUID(user_id)
+                                    ).first() is not None
+                                    
+                                    if not (is_admin or is_member):
+                                        logger.error(f"❌ User {user_id} not authorized for group {group_id}")
+                                        raise Exception(f"User not authorized")
+                                    
+                                    logger.info(f"✅ User {user_id} authorized (Admin: {is_admin}, Member: {is_member})")
+                                    
+                                    # Get all group members
                                     members = db.query(GroupMember).filter(
                                         GroupMember.group_id == UUID(group_id)
                                     ).all()
                                     
+                                    # Save message to database
                                     db_message = GroupMessage(
                                         id=uuid_module.uuid4(),
                                         group_id=UUID(group_id),
@@ -303,21 +325,37 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     
                                     logger.info(f"💾 Group message {message_id} saved")
                                     
-                                    # Send to all members except sender
+                                    # ✅ FIX: Build recipient list including admin
+                                    recipient_ids = set()
+                                    
+                                    # Add all members
                                     for member in members:
-                                        if str(member.user_id) != user_id:
-                                            await manager.send_personal_message(
-                                                json.dumps({
-                                                    "type": "new_group_message",
-                                                    "group_id": group_id,
-                                                    "sender_id": user_id,
-                                                    "message_id": message_id,
-                                                    "encrypted_content": encrypted_content,
-                                                    "encrypted_session_keys": encrypted_session_keys,
-                                                    "timestamp": timestamp
-                                                }),
-                                                str(member.user_id)
-                                            )
+                                        recipient_ids.add(str(member.user_id))
+                                    
+                                    # ✅ CRITICAL: Add admin to recipients
+                                    recipient_ids.add(str(group.admin_id))
+                                    
+                                    # Remove sender from recipients to avoid duplicate
+                                    if user_id in recipient_ids:
+                                        recipient_ids.remove(user_id)
+                                    
+                                    logger.info(f"📤 Broadcasting to {len(recipient_ids)} recipients (excluding sender)")
+                                    
+                                    # Send to all recipients except sender
+                                    for recipient_id in recipient_ids:
+                                        await manager.send_personal_message(
+                                            json.dumps({
+                                                "type": "new_group_message",
+                                                "group_id": group_id,
+                                                "sender_id": user_id,
+                                                "message_id": message_id,
+                                                "encrypted_content": encrypted_content,
+                                                "encrypted_session_keys": encrypted_session_keys,
+                                                "timestamp": timestamp
+                                            }),
+                                            recipient_id
+                                        )
+                                        logger.info(f"  ✅ Sent to user {recipient_id}")
                                     
                                     # Send confirmation to sender
                                     await manager.send_personal_message(
@@ -331,7 +369,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                         user_id
                                     )
                                     
-                                    logger.info(f"📨 Group message forwarded to group {group_id}")
+                                    logger.info(f"✅ Group message broadcast complete for group {group_id}")
                                 except Exception as inner_error:
                                     db.rollback()
                                     logger.error(f"❌ Database error: {inner_error}")
@@ -340,6 +378,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     db.close()
                             except Exception as db_error:
                                 logger.error(f"❌ Failed to save group message: {db_error}")
+                                import traceback
+                                traceback.print_exc()
                     
                     elif message_type == "delivery_confirmation":
                         sender_id = payload.get("sender_id")
