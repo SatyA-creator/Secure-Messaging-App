@@ -131,7 +131,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             
             elif data.get("type") == "group_message":
                 # Group message
-                from app.models.group import GroupMessage, GroupMember
+                from app.models.group import GroupMessage, GroupMember, Group
                 
                 group_id = data.get("group_id")
                 encrypted_content = data.get("encrypted_content")
@@ -141,15 +141,24 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                 print(f"   Sender: {user_id}")
                 print(f"   Content: {encrypted_content}")
                 
-                # Verify sender is member of the group
-                member = db.query(GroupMember).filter(
+                # ✅ FIX: Verify sender is member OR admin of the group
+                group = db.query(Group).filter(Group.id == UUID(group_id)).first()
+                
+                if not group:
+                    print(f"❌ Group {group_id} not found")
+                    continue
+                
+                is_admin = str(group.admin_id) == user_id
+                is_member = db.query(GroupMember).filter(
                     (GroupMember.group_id == UUID(group_id)) &
                     (GroupMember.user_id == UUID(user_id))
-                ).first()
+                ).first() is not None
                 
-                if not member:
-                    print(f"❌ User {user_id} not a member of group {group_id}")
+                if not (is_admin or is_member):
+                    print(f"❌ User {user_id} not authorized for group {group_id}")
                     continue
+                
+                print(f"✅ User authorized - Admin: {is_admin}, Member: {is_member}")
                 
                 # Save group message to database
                 new_message = GroupMessage(
