@@ -416,6 +416,65 @@ async def get_group_messages(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching messages: {str(e)}"
         )
+
+
+@router.delete("/{group_id}")
+async def delete_group(
+    group_id: UUID,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a group (Admin only)"""
+    print(f"\n{'='*60}")
+    print(f"🗑️ DELETE /groups/{group_id} - Deleting group")
+    print(f"   Requested by: {current_user.id}")
+    
+    try:
+        # Get group details before deletion for notification
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Group not found"
+            )
+        
+        # Get all members before deletion for notifications
+        members = db.query(GroupMember).filter(
+            GroupMember.group_id == group_id
+        ).all()
+        
+        member_ids = [str(member.user_id) for member in members]
+        # Include admin in notification list
+        if str(group.admin_id) not in member_ids:
+            member_ids.append(str(group.admin_id))
+        
+        # Delete the group (this will cascade delete members and messages)
+        GroupService.delete_group(db, group_id=group_id, user_id=current_user.id)
+        
+        # Notify all members that group was deleted
+        for member_id in member_ids:
+            await manager.send_personal_message(member_id, {
+                "type": "group_deleted",
+                "group_id": str(group_id),
+                "group_name": group.name,
+                "deleted_by": str(current_user.id),
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        
+        print(f"✅ Group deleted and {len(member_ids)} members notified")
+        print(f"{'='*60}\n")
+        
+        return {"message": "Group deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error deleting group: {e}")
+        print(f"{'='*60}\n")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting group: {str(e)}"
+        )
 # app/api/groups.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

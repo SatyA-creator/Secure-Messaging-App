@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { ContactList } from './ContactList';
 import { ConnectionStatus } from './ConnectionStatus';
-import { Shield, Settings, LogOut, UserPlus, Crown, Users } from 'lucide-react';
+import { Shield, Settings, LogOut, UserPlus, Crown, Users, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -25,7 +25,7 @@ interface SidebarProps {
 
 export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const { user, logout } = useAuth();
-  const { selectGroup } = useChat();
+  const { selectGroup, selectedGroupId } = useChat();
   const [showInvitation, setShowInvitation] = useState(false);
   const [showManageUsers, setShowManageUsers] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -76,11 +76,26 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         loadGroups();
       };
       
+      const handleGroupDeleted = (data: any) => {
+        console.log('🗑️ Group deleted:', data);
+        console.log('   Group:', data.group_name);
+        console.log('   Deleted by:', data.deleted_by);
+        
+        // Remove from local state
+        setGroups(prev => prev.filter(g => g.id !== data.group_id));
+        
+        // If this was the selected group, clear selection
+        if (selectedGroupId === data.group_id) {
+          selectGroup(''); // Clear the selection
+        }
+      };
+      
       // Register listeners for group events
       wsService.on('added_to_group', handleAddedToGroup);
       wsService.on('member_added', handleMemberAdded);
       wsService.on('group_created', handleGroupCreated);
       wsService.on('group_updated', handleGroupUpdated);
+      wsService.on('group_deleted', handleGroupDeleted);
       
       // Cleanup listeners on unmount
       return () => {
@@ -89,6 +104,7 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         wsService.off('member_added', handleMemberAdded);
         wsService.off('group_created', handleGroupCreated);
         wsService.off('group_updated', handleGroupUpdated);
+        wsService.off('group_deleted', handleGroupDeleted);
       };
     } else {
       console.log('⚠️ User not authenticated yet, skipping group load');
@@ -141,6 +157,33 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
       setGroups(prev => prev);
     } finally {
       setIsLoadingGroups(false);
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string, groupName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent group selection when clicking delete
+    
+    if (!window.confirm(`Are you sure you want to delete "${groupName}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      console.log('🗑️ Deleting group:', groupId);
+      await api.delete(`/groups/${groupId}`);
+      
+      console.log('✅ Group deleted successfully');
+      
+      // Remove from local state immediately
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      
+      // If this was the selected group, clear selection
+      if (selectedGroupId === groupId) {
+        selectGroup(''); // Clear the selection by passing empty string
+      }
+      
+    } catch (err: any) {
+      console.error('❌ Error deleting group:', err);
+      alert(`Failed to delete group: ${err.response?.data?.detail || err.message}`);
     }
   };
 
@@ -309,40 +352,55 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         ) : (
           <div className="space-y-1 max-h-[300px] overflow-y-auto">
             {groups.map(group => (
-              <button
+              <div
                 key={group.id}
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-all duration-200 text-left group hover:shadow-sm border border-transparent hover:border-border"
-                onClick={() => {
-                  console.log('👆 Selecting group:', group.name, '(', group.id, ')');
-                  selectGroup(group.id);
-                  if (onSelectContact) onSelectContact();
-                }}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-all duration-200 border border-transparent hover:border-border group/item"
               >
-                <div className="relative">
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-md group-hover:shadow-lg transition-shadow">
-                    {group.name.charAt(0).toUpperCase()}
-                  </div>
-                  {group.is_admin && (
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center border-2 border-card">
-                      <Crown className="w-3 h-3 text-white" />
+                <button
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  onClick={() => {
+                    console.log('👆 Selecting group:', group.name, '(', group.id, ')');
+                    selectGroup(group.id);
+                    if (onSelectContact) onSelectContact();
+                  }}
+                >
+                  <div className="relative">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-md group-hover/item:shadow-lg transition-shadow">
+                      {group.name.charAt(0).toUpperCase()}
                     </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate text-sm flex items-center gap-2">
-                    {group.name}
                     {group.is_admin && (
-                      <Badge variant="secondary" className="h-4 px-1 text-[10px]">
-                        Admin
-                      </Badge>
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center border-2 border-card">
+                        <Crown className="w-3 h-3 text-white" />
+                      </div>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    <span>{group.description || `${group.memberCount || 0} members`}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate text-sm flex items-center gap-2">
+                      {group.name}
+                      {group.is_admin && (
+                        <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                          Admin
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      <span>{group.description || `${group.memberCount || 0} members`}</span>
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                {group.is_admin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover/item:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => handleDeleteGroup(group.id, group.name, e)}
+                    title="Delete group"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             ))}
           </div>
         )}

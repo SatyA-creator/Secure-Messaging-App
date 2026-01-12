@@ -288,3 +288,46 @@ class GroupService:
         ).order_by(GroupMessage.created_at.desc()).limit(limit).offset(offset).all()
         
         return messages
+    
+    @staticmethod
+    def delete_group(
+        db: Session,
+        group_id: UUID,
+        user_id: UUID
+    ):
+        """Delete a group (Admin only)"""
+        # Get the group
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Group not found"
+            )
+        
+        # Verify user is admin of the group
+        if group.admin_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only group admin can delete the group"
+            )
+        
+        # Delete all group messages
+        db.query(GroupMessage).filter(
+            GroupMessage.group_id == group_id
+        ).delete()
+        
+        # Delete all group read receipts
+        db.query(GroupReadReceipt).filter(
+            GroupReadReceipt.group_id == group_id
+        ).delete()
+        
+        # Delete all group members
+        db.query(GroupMember).filter(
+            GroupMember.group_id == group_id
+        ).delete()
+        
+        # Delete the group itself
+        db.delete(group)
+        db.commit()
+        
+        return {"message": "Group deleted successfully"}
