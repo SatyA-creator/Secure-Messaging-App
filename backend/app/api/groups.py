@@ -399,11 +399,14 @@ async def get_group_messages(
             "total": len(messages),
             "messages": [
                 {
+                    "id": str(m.id),
                     "message_id": str(m.id),
                     "sender_id": str(m.sender_id),
-                    "encrypted_content": m.encrypted_content.hex(),
-                    "encrypted_session_key": m.encrypted_session_key.hex(),
-                    "created_at": m.created_at.isoformat()
+                    "content": m.encrypted_content.decode('utf-8') if isinstance(m.encrypted_content, bytes) else str(m.encrypted_content),
+                    "encrypted_content": m.encrypted_content.hex() if isinstance(m.encrypted_content, bytes) else str(m.encrypted_content),
+                    "encrypted_session_key": m.encrypted_session_key.hex() if isinstance(m.encrypted_session_key, bytes) else str(m.encrypted_session_key),
+                    "created_at": m.created_at.isoformat(),
+                    "timestamp": m.created_at.isoformat()
                 } for m in messages
             ]
         }
