@@ -311,14 +311,9 @@ class GroupService:
                 detail="Only group admin can delete the group"
             )
         
-        # Delete all group messages
+        # Delete all group messages (this will cascade delete read receipts due to ondelete="CASCADE")
         db.query(GroupMessage).filter(
             GroupMessage.group_id == group_id
-        ).delete()
-        
-        # Delete all group read receipts
-        db.query(GroupReadReceipt).filter(
-            GroupReadReceipt.group_id == group_id
         ).delete()
         
         # Delete all group members
