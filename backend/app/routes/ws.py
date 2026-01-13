@@ -7,7 +7,7 @@ from app.services.auth_service import AuthService
 from app.services.group_service import GroupService
 from app.middleware.auth import get_current_user
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 import uuid as uuid_module
 
@@ -43,7 +43,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
         await manager.broadcast({
             "type": "user_online",
             "user_id": user_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
         # Listen for messages
@@ -104,7 +104,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                 await manager.send_personal_message(sender_id, {
                     "type": "message_delivered",
                     "message_id": message_id,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
             elif data.get("type") == "read_confirmation":
@@ -117,7 +117,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                 await manager.send_personal_message(sender_id, {
                     "type": "message_read",
                     "message_id": message_id,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
             elif data.get("type") == "typing":
@@ -199,5 +199,5 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
         await manager.broadcast({
             "type": "user_offline",
             "user_id": user_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })

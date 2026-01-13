@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Boolean, DateTime, LargeBinary, Index
 from sqlalchemy.dialects.postgresql import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.database import Base
@@ -24,14 +24,14 @@ class User(Base):
     # Status
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
-    last_seen = Column(DateTime, default=datetime.utcnow)
+    last_seen = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Role-based access control
     role = Column(String(20), nullable=False, default='user', server_default='user')
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Indexes
     __table_args__ = (

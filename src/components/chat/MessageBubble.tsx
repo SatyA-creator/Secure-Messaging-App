@@ -2,7 +2,7 @@ import React from 'react';
 import { Message } from '@/types/messaging';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Check, CheckCheck, Clock, Lock, AlertCircle } from 'lucide-react';
+import { Check, CheckCheck, Clock, Lock, AlertCircle, Eye } from 'lucide-react';
 
 interface MessageBubbleProps {
   message: Message;
@@ -57,7 +57,7 @@ function MessageStatus({ status }: { status: Message['status'] }) {
     case 'delivered':
       return <CheckCheck className="w-3.5 h-3.5 text-muted-foreground/70" />;
     case 'read':
-      return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />;
+      return <Eye className="w-3.5 h-3.5 text-blue-500" title="Read" />;
     case 'failed':
       return <AlertCircle className="w-3.5 h-3.5 text-destructive" />;
     default:

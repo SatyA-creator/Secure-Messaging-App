@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.database import Base
@@ -16,7 +16,7 @@ class Contact(Base):
     
     # Metadata
     nickname = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Unique constraint
     __table_args__ = (
