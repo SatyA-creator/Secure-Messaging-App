@@ -132,14 +132,25 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
       const response = await fetch(`${ENV.API_URL}/admin/remove-contact/${user.id}/${userId}`, {
         method: 'DELETE',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to remove contact');
+        let errorMessage = 'Failed to remove contact';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = `Failed to remove contact: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
+      const data = await response.json();
+      
       toast({
         title: "User deleted",
         description: "User account and all data permanently deleted. They can re-register if needed.",
@@ -149,8 +160,9 @@ export function ManageUsers({ onClose }: { onClose: () => void }) {
       await fetchUsers();
       await refreshContacts();
     } catch (err) {
+      console.error('Error removing contact:', err);
       toast({
-        title: "Failed to remove contact",
+        title: "Failed to delete user",
         description: err instanceof Error ? err.message : 'Please try again',
         variant: "destructive",
       });

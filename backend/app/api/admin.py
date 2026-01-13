@@ -6,6 +6,7 @@ from app.models.contact import Contact
 from app.models.message import Message
 from app.models.invitation import Invitation
 from app.models.deleted_user import DeletedUser
+from app.models.group import Group, GroupMember, GroupMessage, GroupReadReceipt
 from typing import List
 from pydantic import BaseModel
 import uuid
@@ -106,46 +107,71 @@ async def add_contact_manually(request: AddContactRequest, db: Session = Depends
 async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: Session = Depends(get_db)):
     """Manually remove a user from contacts (admin only) - Deletes user account completely"""
     
-    # Verify requester is admin
-    admin = db.query(User).filter(User.id == admin_id).first()
-    if not admin or admin.role != 'admin':
+    try:
+        # Verify requester is admin
+        admin = db.query(User).filter(User.id == admin_id).first()
+        if not admin or admin.role != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can remove contacts"
+            )
+        
+        # Get the user to be removed
+        removed_user = db.query(User).filter(User.id == user_id).first()
+        if not removed_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Store user details for logging
+        deleted_email = removed_user.email
+        deleted_username = removed_user.username
+        
+        # Delete group read receipts for this user
+        db.query(GroupReadReceipt).filter(GroupReadReceipt.user_id == user_id).delete(synchronize_session=False)
+        
+        # Delete group messages sent by this user
+        db.query(GroupMessage).filter(GroupMessage.sender_id == user_id).delete(synchronize_session=False)
+        
+        # Delete group memberships
+        db.query(GroupMember).filter(GroupMember.user_id == user_id).delete(synchronize_session=False)
+        
+        # Delete groups where this user is the admin
+        db.query(Group).filter(Group.admin_id == user_id).delete(synchronize_session=False)
+        
+        # Delete all messages sent by or to this user
+        db.query(Message).filter(
+            (Message.sender_id == user_id) | (Message.recipient_id == user_id)
+        ).delete(synchronize_session=False)
+        
+        # Delete all contacts (bidirectional)
+        db.query(Contact).filter(
+            (Contact.user_id == user_id) | (Contact.contact_id == user_id)
+        ).delete(synchronize_session=False)
+        
+        # Delete all invitations related to this user
+        db.query(Invitation).filter(
+            (Invitation.inviter_id == user_id) | (Invitation.invitee_email == removed_user.email)
+        ).delete(synchronize_session=False)
+        
+        # Delete the user account itself
+        db.delete(removed_user)
+        
+        db.commit()
+        
+        logger.info(f"Admin {admin_id} removed user {user_id} ({deleted_email}) from system")
+        
+        return {"status": "success", "message": "User account and all related data removed successfully", "deleted_email": deleted_email}
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log and handle unexpected errors
+        logger.error(f"Error removing user {user_id}: {str(e)}")
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can remove contacts"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete user: {str(e)}"
         )
-    
-    # Get the user to be removed
-    removed_user = db.query(User).filter(User.id == user_id).first()
-    if not removed_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    # Store user details for logging
-    deleted_email = removed_user.email
-    deleted_username = removed_user.username
-    
-    # Delete all messages sent by or to this user
-    db.query(Message).filter(
-        (Message.sender_id == user_id) | (Message.recipient_id == user_id)
-    ).delete(synchronize_session=False)
-    
-    # Delete all contacts (bidirectional)
-    db.query(Contact).filter(
-        (Contact.user_id == user_id) | (Contact.contact_id == user_id)
-    ).delete(synchronize_session=False)
-    
-    # Delete all invitations related to this user
-    db.query(Invitation).filter(
-        (Invitation.inviter_id == user_id) | (Invitation.invitee_email == removed_user.email)
-    ).delete(synchronize_session=False)
-    
-    # Delete the user account itself
-    db.delete(removed_user)
-    
-    db.commit()
-    
-    logger.info(f"Admin {admin_id} removed user {user_id} ({deleted_email}) from system")
-    
-    return {"status": "success", "message": "User account and all related data removed successfully", "deleted_email": deleted_email}
