@@ -11,7 +11,7 @@ interface ChatContextType {
   selectedGroupId: string | null;
   selectContact: (contactId: string) => void;
   selectGroup: (groupId: string) => void;
-  sendMessage: (recipientId: string, content: string) => Promise<void>;
+  sendMessage: (recipientId: string, content: string, files?: File[]) => Promise<void>;
   markAsRead: (contactId: string) => void;
   addContact: (email: string, displayName?: string) => Promise<void>;
   refreshContacts: () => Promise<void>;
@@ -469,7 +469,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [contacts, selectContact]);
 
   // ✅ CRITICAL FIX #4: Actually send messages via WebSocket
-  const sendMessage = useCallback(async (recipientId: string, content: string) => {
+  const sendMessage = useCallback(async (recipientId: string, content: string, files?: File[]) => {
     if (!user) {
       console.error('❌ Cannot send message: User not authenticated');
       return;
@@ -479,6 +479,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     console.log('   From (sender):', user.id);
     console.log('   To (recipient):', recipientId);
     console.log('   Content:', content);
+    console.log('   Files:', files?.length || 0);
     
     if (!wsRef.current?.isConnected()) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -512,12 +513,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }));
 
     try {
+      // Upload files first if any
+      let mediaIds: string[] = [];
+      if (files && files.length > 0) {
+        console.log(`📎 Uploading ${files.length} file(s)...`);
+        const { MediaService } = await import('@/lib/mediaService');
+        const uploadResults = await MediaService.uploadMultiple(files, messageId);
+        mediaIds = uploadResults.map(r => r.id);
+        console.log(`✅ Uploaded ${mediaIds.length} file(s)`);
+      }
+
       // ✅ ACTUALLY SEND MESSAGE VIA WEBSOCKET
       wsRef.current.send('message', {
         recipient_id: recipientId,
         encrypted_content: newMessage.encryptedContent,
         encrypted_session_key: 'session-key-placeholder', // Replace with actual encryption logic
-        message_id: messageId
+        message_id: messageId,
+        has_media: mediaIds.length > 0,
+        media_ids: mediaIds
       });
       
       console.log(`📤 Message sent to ${recipientId}: "${content.substring(0, 50)}..."`);

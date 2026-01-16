@@ -92,9 +92,9 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
     }
   }, [selectedContactId, conversation?.messages, user]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, files?: File[]) => {
     if (selectedContactId) {
-      await sendMessage(selectedContactId, content);
+      await sendMessage(selectedContactId, content, files);
     }
   };
 
