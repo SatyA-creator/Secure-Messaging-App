@@ -3,7 +3,6 @@ import { Contact, Message, Conversation, MessageStatus } from '@/types/messaging
 import { useAuth } from './AuthContext';
 import WebSocketService from '@/lib/websocket';
 import { ENV } from '@/config/env';
-import { MediaService } from '@/lib/mediaService';
 
 interface ChatContextType {
   contacts: Contact[];
