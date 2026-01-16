@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, Index, Boolean
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
 
@@ -22,9 +23,15 @@ class Message(Base):
     is_read = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)
     
+    # Media attachments
+    has_media = Column(Boolean, default=False)
+    
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    media_attachments = relationship("MediaAttachment", backref="message", cascade="all, delete-orphan")
     
     # Indexes
     __table_args__ = (

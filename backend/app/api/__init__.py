@@ -10,6 +10,7 @@ from .users import router as users_router
 from .invitations import router as invitations_router
 from .admin import router as admin_router
 from .groups import router as groups_router
+from .media import router as media_router
 
 # Include all routers
 router.include_router(auth_router, prefix="/auth", tags=["authentication"])
@@ -19,3 +20,4 @@ router.include_router(users_router, prefix="/users", tags=["users"])
 router.include_router(invitations_router, prefix="/invitations", tags=["invitations"])
 router.include_router(admin_router, prefix="/admin", tags=["admin"])
 router.include_router(groups_router, prefix="/groups", tags=["groups"])
+router.include_router(media_router, prefix="/media", tags=["media"])

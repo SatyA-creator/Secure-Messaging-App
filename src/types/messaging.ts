@@ -25,6 +25,19 @@ export interface Message {
   status: MessageStatus;
   createdAt: Date;
   isEncrypted: boolean;
+  hasMedia?: boolean;
+  mediaAttachments?: MediaAttachment[];
+}
+
+export interface MediaAttachment {
+  id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  file_url: string;
+  category: 'image' | 'video' | 'document' | 'other';
+  thumbnail_url?: string;
+  created_at: string;
 }
 
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
