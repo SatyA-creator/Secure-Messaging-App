@@ -3,6 +3,7 @@ import { Contact, Message, Conversation, MessageStatus } from '@/types/messaging
 import { useAuth } from './AuthContext';
 import WebSocketService from '@/lib/websocket';
 import { ENV } from '@/config/env';
+import { MediaService } from '@/lib/mediaService';
 
 interface ChatContextType {
   contacts: Contact[];
@@ -517,7 +518,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       let mediaIds: string[] = [];
       if (files && files.length > 0) {
         console.log(`📎 Uploading ${files.length} file(s)...`);
-        const MediaService = (await import('@/lib/mediaService')).MediaService;
         const uploadResults = await MediaService.uploadMultiple(files, messageId);
         mediaIds = uploadResults.map(r => r.id);
         console.log(`✅ Uploaded ${mediaIds.length} file(s)`);
