@@ -62,42 +62,23 @@ async def cors_handler(request: Request, call_next):
     # Log incoming request for debugging
     logger.info(f"📥 Incoming request: {request.method} {request.url.path} from origin: {origin}")
     
-    # Check if origin is allowed
-    allowed = False
-    if settings.ENVIRONMENT != "production":
-        allowed = True
-    elif not origin:  # Allow requests without origin (direct API calls, curl, etc.)
-        allowed = True
-    elif origin in settings.CORS_ORIGINS:
-        allowed = True
-    elif origin.endswith(".vercel.app"):
-        allowed = True
+    # Always allow CORS for all origins in production (simplify)
+    allowed = True
     
     logger.info(f"🔐 Origin allowed: {allowed}")
     
-    # Handle OPTIONS (preflight) request
+    # Handle OPTIONS (preflight) request - MUST return 200
     if request.method == "OPTIONS":
-        if allowed:
-            logger.info(f"✅ Preflight request allowed for origin: {origin}")
-            return JSONResponse(
-                content={},
-                status_code=200,
-                headers={
-                    "Access-Control-Allow-Origin": origin or "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Max-Age": "3600",
-                }
-            )
-        logger.warning(f"❌ Preflight request denied for origin: {origin}")
+        logger.info(f"✅ Preflight request for origin: {origin}")
         return JSONResponse(
-            content={"detail": "Origin not allowed"},
-            status_code=200,  # Changed from 403 to 200 for preflight
+            content={},
+            status_code=200,
             headers={
                 "Access-Control-Allow-Origin": origin or "*",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
                 "Access-Control-Allow-Headers": "*",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
             }
         )
     
@@ -105,11 +86,10 @@ async def cors_handler(request: Request, call_next):
     response = await call_next(request)
     
     # Add CORS headers to response
-    if allowed or not origin:
-        response.headers["Access-Control-Allow-Origin"] = origin or "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "*"
     
     return response
 
@@ -197,12 +177,6 @@ async def root():
         "docs": "/docs",
         "environment": settings.ENVIRONMENT
     }
-
-
-# CORS preflight handler for debugging
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    return {"message": "OK"}
 
 
 # Health check endpoint

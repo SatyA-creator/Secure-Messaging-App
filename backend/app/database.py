@@ -15,25 +15,45 @@ pool_recycle = 3600
 if "sqlite" in settings.DATABASE_URL:
     connect_args["check_same_thread"] = False
 elif "postgresql" in settings.DATABASE_URL or "postgres" in settings.DATABASE_URL:
-    # For Supabase with Render, use direct connection with SSL
-    logger.info("🔗 Configuring PostgreSQL connection for Render + Supabase")
-    connect_args = {
-        "connect_timeout": 10,
-        "options": "-c statement_timeout=30000",  # 30 second query timeout
-    }
-    pool_pre_ping = True
-    pool_recycle = 300  # Recycle every 5 minutes
+    # Check if using pgbouncer (Supabase Transaction Pooler)
+    is_pgbouncer = "pgbouncer=true" in settings.DATABASE_URL or "6543" in settings.DATABASE_URL
+    
+    if is_pgbouncer:
+        # PgBouncer/Transaction Pooler settings (port 6543)
+        logger.info("🔄 Using Supabase Transaction Pooler (pgbouncer) - port 6543")
+        connect_args = {
+            "connect_timeout": 15,
+            "application_name": "messaging-app",
+        }
+        # CRITICAL: Disable pool_pre_ping with pgbouncer
+        pool_pre_ping = False
+        pool_recycle = 300  # 5 minutes
+    else:
+        # Direct PostgreSQL connection (port 5432)
+        logger.info("🔗 Using direct PostgreSQL connection - port 5432")
+        connect_args = {
+            "connect_timeout": 10,
+            "options": "-c statement_timeout=30000",
+        }
+        pool_pre_ping = True
+        pool_recycle = 300
 
-# Create engine with optimized settings for Render
+# Get pool settings from environment or use defaults
+pool_size = settings.DATABASE_POOL_SIZE if settings.DATABASE_POOL_SIZE > 0 else 1
+max_overflow = settings.DATABASE_MAX_OVERFLOW if settings.DATABASE_MAX_OVERFLOW >= 0 else 0
+
+logger.info(f"📊 Database pool settings: size={pool_size}, overflow={max_overflow}")
+
+# Create engine with optimized settings
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_size=5,  # Reduced for Render free tier
-    max_overflow=10,  # Reduced overflow
+    pool_size=pool_size,
+    max_overflow=max_overflow,
     pool_pre_ping=pool_pre_ping,
     pool_recycle=pool_recycle,
     echo=settings.DEBUG,
     connect_args=connect_args,
-    pool_timeout=30,  # Wait up to 30s for connection from pool
+    pool_timeout=30,
 )
 
 # Create session factory
