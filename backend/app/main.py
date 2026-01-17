@@ -71,9 +71,18 @@ async def startup():
     """Initialize database and start background tasks"""
     logger.info("🚀 Application starting...")
     
-    # Initialize database
-    init_db()
-    logger.info("✅ Database initialized")
+    # Initialize database with error handling
+    try:
+        init_db()
+        logger.info("✅ Database initialized")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        logger.error("⚠️  Application will continue but database operations will fail!")
+        logger.error("📋 Possible causes:")
+        logger.error("   1. Supabase requires IPv4 add-on for external connections")
+        logger.error("   2. Check DATABASE_URL in environment variables")
+        logger.error("   3. Verify Supabase firewall/network settings")
+        # Don't crash the app - let it start so we can see the error in logs
     
     # Initialize and start email queue worker
     EmailQueue.initialize()
