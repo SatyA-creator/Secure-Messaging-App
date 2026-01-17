@@ -1,17 +1,18 @@
 // API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://secure-messaging-app-backend.onrender.com';
+// Note: VITE_API_URL already includes /api/v1
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://secure-messaging-app-backend.onrender.com/api/v1';
 export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'wss://secure-messaging-app-backend.onrender.com';
 
 export const API_ENDPOINTS = {
   AUTH: {
-    LOGIN: `${API_BASE_URL}/api/v1/auth/login`,
-    REGISTER: `${API_BASE_URL}/api/v1/auth/register`,
-    ME: `${API_BASE_URL}/api/v1/auth/me`,
+    LOGIN: `${API_BASE_URL}/auth/login`,
+    REGISTER: `${API_BASE_URL}/auth/register`,
+    ME: `${API_BASE_URL}/auth/me`,
   },
   INVITATIONS: {
-    SEND: `${API_BASE_URL}/api/v1/invitations/send`,
-    VERIFY: (token: string) => `${API_BASE_URL}/api/v1/invitations/verify/${token}`,
-    ACCEPT: `${API_BASE_URL}/api/v1/invitations/accept`,
+    SEND: `${API_BASE_URL}/invitations/send`,
+    VERIFY: (token: string) => `${API_BASE_URL}/invitations/verify/${token}`,
+    ACCEPT: `${API_BASE_URL}/invitations/accept`,
   },
   WEBSOCKET: (userId: string) => `${WS_BASE_URL}/ws/${userId}`,
 };
