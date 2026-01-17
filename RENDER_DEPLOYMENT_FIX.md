@@ -1,15 +1,47 @@
-# Render Deployment - Supabase Connection Fix
+# Render Deployment - Supabase IPv4 Connection Fix
 
-## Problem
+## Root Cause
+**Supabase Direct Connection is IPv6 only**, but **Render requires IPv4**!
+
 ```
-Connection timed out to aws-1-ap-south-1.pooler.supabase.com:6543
+❌ Direct Connection (port 5432) = IPv6 only → Won't work with Render
+✅ Session Pooler (port 6543) = IPv4 compatible → Use this!
 ```
 
-Render cannot connect to Supabase database due to IP restrictions.
+## ✅ SOLUTION: Use Session Pooler with Correct Settings
 
-## Solutions (Choose ONE)
+### Step 1: Get Session Pooler Connection String
 
-### ✅ Solution 1: Enable IPv4 in Supabase (RECOMMENDED)
+1. **In Supabase Dashboard** (where you took the screenshot):
+   - Click **"Pooler settings"** button
+   - OR change Method dropdown from "Direct connection" to **"Session pooling"**
+   - Copy the **Transaction pooling** or **Session pooling** connection string
+   - It should look like: 
+     ```
+     postgresql://postgres.ycn1lziiknmahekkvgeg:[PASSWORD]@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+     ```
+
+### Step 2: Configure Pooler Mode
+
+In Supabase:
+- Go to **Database** → **Pooler Configuration**
+- Set mode to **"Transaction"** (recommended for FastAPI/SQLAlchemy)
+- Save changes
+
+### Step 3: Update Render Environment Variables
+
+In Render Dashboard:
+```env
+DATABASE_URL=postgresql://postgres.ycn1lziiknmahekkvgeg:[YOUR-PASSWORD]@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DATABASE_POOL_SIZE=5
+DATABASE_MAX_OVERFLOW=10
+```
+
+**Important**: Add `?pgbouncer=true` at the end of the connection string!
+
+### Step 4: Update Backend Database Configuration
+
+The connection was timing out because we need specific settings for PgBouncer (Supabase's pooler):
 
 1. **Go to Supabase Dashboard**
    - Navigate to your project: https://supabase.com/dashboard/project/YOUR_PROJECT_ID

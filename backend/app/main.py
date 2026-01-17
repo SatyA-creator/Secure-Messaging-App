@@ -1,11 +1,13 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.services.auth_service import AuthService
 import logging
 import json
 import asyncio
 from typing import Dict, List
 from datetime import datetime
+import re
 
 from app.config import settings
 from app.database import init_db
@@ -51,10 +53,59 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Custom CORS middleware to allow Vercel deployments
+@app.middleware("http")
+async def cors_handler(request: Request, call_next):
+    """Custom CORS handler to allow Vercel preview deployments"""
+    origin = request.headers.get("origin", "")
+    
+    # Log incoming request for debugging
+    logger.info(f"📥 Incoming request: {request.method} {request.url.path} from origin: {origin}")
+    
+    # Check if origin is allowed
+    allowed = False
+    if settings.ENVIRONMENT != "production":
+        allowed = True
+    elif origin in settings.CORS_ORIGINS:
+        allowed = True
+    elif origin.endswith(".vercel.app"):
+        allowed = True
+    
+    logger.info(f"🔐 Origin allowed: {allowed}")
+    
+    # Handle OPTIONS (preflight) request
+    if request.method == "OPTIONS":
+        if allowed:
+            logger.info(f"✅ Preflight request allowed for origin: {origin}")
+            return JSONResponse(
+                content={},
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Max-Age": "3600",
+                }
+            )
+        logger.warning(f"❌ Preflight request denied for origin: {origin}")
+        return JSONResponse(content={"detail": "Origin not allowed"}, status_code=403)
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Add CORS headers to response
+    if allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
+
+# Add CORS middleware (fallback)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS if settings.ENVIRONMENT == "production" else ["*"],
+    allow_origins=["*"] if settings.ENVIRONMENT != "production" else settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],

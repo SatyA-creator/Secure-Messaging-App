@@ -32,20 +32,30 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours for WebSocket stability
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
-    # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://localhost:8080",
-        "http://localhost:8081",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:8081",
-        "https://secure-messaging-app-omega.vercel.app",
-    ]
+    # CORS - Load from environment variable or use defaults
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        # Try to get from environment variable first
+        cors_env = os.getenv("CORS_ORIGINS", "")
+        if cors_env:
+            return [origin.strip() for origin in cors_env.split(",")]
+        
+        # Default CORS origins
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "http://localhost:8080",
+            "http://localhost:8081",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:8081",
+            "https://secure-messaging-app-omega.vercel.app",
+            # Allow all Vercel preview deployments
+            "https://*.vercel.app",
+        ]
     
     # Security
     BCRYPT_SALT_ROUNDS: int = int(os.getenv("BCRYPT_SALT_ROUNDS", "10"))
