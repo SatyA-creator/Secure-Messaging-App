@@ -59,6 +59,9 @@ const apiService = {
     console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
     console.log('Login email:', email);
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -66,7 +69,10 @@ const apiService = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
       
       console.log('Login response status:', response.status);
       console.log('Login response ok:', response.ok);
@@ -89,7 +95,12 @@ const apiService = {
       const responseData = await response.json();
       console.log('Login successful, response data:', { ...responseData, access_token: '[REDACTED]' });
       return responseData;
-    } catch (error) {
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.error('Login request timed out after 30 seconds');
+        throw new Error('Request timed out. Please check your connection and try again.');
+      }
       console.error('Login fetch error:', error);
       throw error;
     }
