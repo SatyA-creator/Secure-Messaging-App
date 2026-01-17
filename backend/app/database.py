@@ -6,13 +6,29 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Create engine
+# Prepare connection arguments for Supabase/PostgreSQL
+connect_args = {}
+if "sqlite" in settings.DATABASE_URL:
+    connect_args["check_same_thread"] = False
+elif "postgresql" in settings.DATABASE_URL or "postgres" in settings.DATABASE_URL:
+    # Add SSL and connection settings for Supabase
+    connect_args = {
+        "connect_timeout": 30,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
+
+# Create engine with optimized settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_recycle=3600,   # Recycle connections after 1 hour
     echo=settings.DEBUG,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+    connect_args=connect_args
 )
 
 # Create session factory
