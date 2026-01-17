@@ -66,6 +66,8 @@ async def cors_handler(request: Request, call_next):
     allowed = False
     if settings.ENVIRONMENT != "production":
         allowed = True
+    elif not origin:  # Allow requests without origin (direct API calls, curl, etc.)
+        allowed = True
     elif origin in settings.CORS_ORIGINS:
         allowed = True
     elif origin.endswith(".vercel.app"):
@@ -79,8 +81,9 @@ async def cors_handler(request: Request, call_next):
             logger.info(f"✅ Preflight request allowed for origin: {origin}")
             return JSONResponse(
                 content={},
+                status_code=200,
                 headers={
-                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Origin": origin or "*",
                     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
                     "Access-Control-Allow-Headers": "*",
                     "Access-Control-Allow-Credentials": "true",
@@ -88,14 +91,22 @@ async def cors_handler(request: Request, call_next):
                 }
             )
         logger.warning(f"❌ Preflight request denied for origin: {origin}")
-        return JSONResponse(content={"detail": "Origin not allowed"}, status_code=403)
+        return JSONResponse(
+            content={"detail": "Origin not allowed"},
+            status_code=200,  # Changed from 403 to 200 for preflight
+            headers={
+                "Access-Control-Allow-Origin": origin or "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
     
     # Process request
     response = await call_next(request)
     
     # Add CORS headers to response
-    if allowed:
-        response.headers["Access-Control-Allow-Origin"] = origin
+    if allowed or not origin:
+        response.headers["Access-Control-Allow-Origin"] = origin or "*"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         response.headers["Access-Control-Allow-Headers"] = "*"
