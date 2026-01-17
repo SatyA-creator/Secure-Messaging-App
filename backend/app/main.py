@@ -53,53 +53,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Custom CORS middleware to allow Vercel deployments
+# ✅ Add request logging middleware
 @app.middleware("http")
-async def cors_handler(request: Request, call_next):
-    """Custom CORS handler to allow Vercel preview deployments"""
-    origin = request.headers.get("origin", "")
-    
-    # Log incoming request for debugging
-    logger.info(f"📥 Incoming request: {request.method} {request.url.path} from origin: {origin}")
-    
-    # Always allow CORS for all origins in production (simplify)
-    allowed = True
-    
-    logger.info(f"🔐 Origin allowed: {allowed}")
-    
-    # Handle OPTIONS (preflight) request - MUST return 200
-    if request.method == "OPTIONS":
-        logger.info(f"✅ Preflight request for origin: {origin}")
-        return JSONResponse(
-            content={},
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": origin or "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Max-Age": "3600",
-            }
-        )
-    
-    # Process request
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests"""
+    logger.info(f"📥 {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+    logger.info(f"   Origin: {request.headers.get('origin', 'none')}")
     response = await call_next(request)
-    
-    # Add CORS headers to response
-    response.headers["Access-Control-Allow-Origin"] = origin or "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    
+    logger.info(f"📤 Response status: {response.status_code}")
     return response
 
-# Add CORS middleware (fallback)
+# ✅ Add CORS middleware - SIMPLE AND PERMISSIVE for debugging
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.ENVIRONMENT != "production" else settings.CORS_ORIGINS,
+    allow_origins=["*"],  # Allow all origins for now
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
     expose_headers=["*"],
 )
 
