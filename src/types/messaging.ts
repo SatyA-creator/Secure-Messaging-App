@@ -27,6 +27,7 @@ export interface Message {
   isEncrypted: boolean;
   hasMedia?: boolean;
   mediaAttachments?: MediaAttachment[];
+  mediaUrls?: string[];  // Array of media file URLs
 }
 
 export interface MediaAttachment {

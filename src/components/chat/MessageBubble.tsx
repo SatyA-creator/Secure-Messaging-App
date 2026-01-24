@@ -2,7 +2,8 @@ import React from 'react';
 import { Message } from '@/types/messaging';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Check, CheckCheck, Clock, Lock, AlertCircle, Eye } from 'lucide-react';
+import { Check, CheckCheck, Clock, Lock, AlertCircle, Eye, FileText, Download } from 'lucide-react';
+import { ENV } from '@/config/env';
 
 interface MessageBubbleProps {
   message: Message;
@@ -10,6 +11,10 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+  const hasMedia = (message.mediaAttachments && message.mediaAttachments.length > 0) || 
+                   (message.mediaUrls && message.mediaUrls.length > 0);
+  const hasText = message.decryptedContent && message.decryptedContent.trim() !== '' && message.decryptedContent !== 'encrypted:';
+
   return (
     <div
       className={cn(
@@ -25,9 +30,81 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
             : "message-received rounded-bl-md"
         )}
       >
-        <p className="text-sm leading-relaxed break-words">
-          {message.decryptedContent?.replace(/^encrypted:/, '') || '[Encrypted message]'}
-        </p>
+        {/* Media attachments */}
+        {hasMedia && (
+          <div className="space-y-2 mb-2">
+            {/* From mediaAttachments array */}
+            {message.mediaAttachments?.map((media, index) => {
+              const fullUrl = media.file_url.startsWith('http') ? media.file_url : `${ENV.API_URL}${media.file_url}`;
+              
+              if (media.category === 'image') {
+                return (
+                  <img
+                    key={media.id}
+                    src={fullUrl}
+                    alt={media.file_name}
+                    className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(fullUrl, '_blank')}
+                  />
+                );
+              } else {
+                return (
+                  <a
+                    key={media.id}
+                    href={fullUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span className="text-sm truncate flex-1">{media.file_name}</span>
+                    <Download className="w-4 h-4" />
+                  </a>
+                );
+              }
+            })}
+            
+            {/* From mediaUrls array (fallback) */}
+            {message.mediaUrls?.map((mediaUrl, index) => {
+              const fullUrl = mediaUrl.startsWith('http') ? mediaUrl : `${ENV.API_URL}${mediaUrl}`;
+              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
+              
+              if (isImage) {
+                return (
+                  <img
+                    key={index}
+                    src={fullUrl}
+                    alt="Attachment"
+                    className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(fullUrl, '_blank')}
+                  />
+                );
+              } else {
+                const fileName = mediaUrl.split('/').pop() || 'file';
+                return (
+                  <a
+                    key={index}
+                    href={fullUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span className="text-sm truncate flex-1">{fileName}</span>
+                    <Download className="w-4 h-4" />
+                  </a>
+                );
+              }
+            })}
+          </div>
+        )}
+        
+        {/* Text content */}
+        {hasText && (
+          <p className="text-sm leading-relaxed break-words">
+            {message.decryptedContent?.replace(/^encrypted:/, '') || '[Encrypted message]'}
+          </p>
+        )}
         
         <div className={cn(
           "flex items-center gap-1.5 mt-1",
