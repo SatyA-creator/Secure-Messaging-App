@@ -190,9 +190,22 @@ async def fix_media_table(admin_id: uuid.UUID, db: Session = Depends(get_db)):
         )
     
     try:
-        # Make message_id nullable
+        # Step 1: Drop foreign key constraint
+        db.execute(text(
+            "ALTER TABLE media_attachments DROP CONSTRAINT IF EXISTS media_attachments_message_id_fkey;"
+        ))
+        db.commit()
+        
+        # Step 2: Make message_id nullable
         db.execute(text(
             "ALTER TABLE media_attachments ALTER COLUMN message_id DROP NOT NULL;"
+        ))
+        db.commit()
+        
+        # Step 3: Re-add foreign key constraint
+        db.execute(text(
+            "ALTER TABLE media_attachments ADD CONSTRAINT media_attachments_message_id_fkey "
+            "FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE;"
         ))
         db.commit()
         
@@ -202,5 +215,5 @@ async def fix_media_table(admin_id: uuid.UUID, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to fix media table: {str(e)}")
-        return {"status": "error", "message": f"Migration already applied or error: {str(e)}"}
+        return {"status": "error", "message": f"Migration failed: {str(e)}"}
 
