@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.database import get_db
 from app.models.user import User
 from app.models.contact import Contact
@@ -175,3 +176,31 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete user: {str(e)}"
         )
+
+@router.post("/fix-media-table/{admin_id}")
+async def fix_media_table(admin_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Fix media_attachments table to allow nullable message_id (admin only)"""
+    
+    # Verify requester is admin
+    admin = db.query(User).filter(User.id == admin_id).first()
+    if not admin or admin.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can run migrations"
+        )
+    
+    try:
+        # Make message_id nullable
+        db.execute(text(
+            "ALTER TABLE media_attachments ALTER COLUMN message_id DROP NOT NULL;"
+        ))
+        db.commit()
+        
+        logger.info(f"Admin {admin_id} ran media_attachments migration successfully")
+        return {"status": "success", "message": "Media table fixed - message_id is now nullable"}
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to fix media table: {str(e)}")
+        return {"status": "error", "message": f"Migration already applied or error: {str(e)}"}
+
