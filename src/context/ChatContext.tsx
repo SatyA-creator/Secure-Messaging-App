@@ -255,12 +255,69 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
 
       // ✅ Listen for message_sent confirmation
-      const handleMessageSent = (data: any) => {
+      const handleMessageSent = async (data: any) => {
         console.log('✅ Message sent confirmation:', data);
         const messageId = data.message_id;
         const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
         
         if (messageId) {
+          // Find which contact this message belongs to
+          let targetContactId: string | null = null;
+          
+          setConversations(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(contactId => {
+              const messageIndex = updated[contactId].messages.findIndex(m => m.id === messageId);
+              if (messageIndex >= 0) {
+                targetContactId = contactId;
+              }
+            });
+            return updated;
+          });
+          
+          // Refetch conversation to get media attachments
+          if (targetContactId && user?.id) {
+            console.log('🔄 Refetching conversation to get media attachments');
+            try {
+              const response = await fetch(
+                `${ENV.API_URL}/messages/conversation/${targetContactId}?current_user_id=${user.id}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                  },
+                }
+              );
+              
+              if (response.ok) {
+                const messages: any[] = await response.json();
+                console.log(`📥 Refetched ${messages.length} messages with media`);
+                
+                setConversations(prev => ({
+                  ...prev,
+                  [targetContactId]: {
+                    ...prev[targetContactId],
+                    messages: messages.map((msg: any) => ({
+                      id: msg.id,
+                      senderId: msg.sender_id,
+                      recipientId: msg.recipient_id,
+                      encryptedContent: msg.encrypted_content,
+                      encryptedSessionKey: msg.encrypted_session_key,
+                      decryptedContent: decryptMessage(msg.encrypted_content, msg.encrypted_session_key || ''),
+                      createdAt: new Date(msg.created_at),
+                      isRead: msg.is_read,
+                      status: 'sent' as MessageStatus,
+                      mediaAttachments: msg.media_attachments || [],
+                      mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
+                    })),
+                    isLoading: false,
+                  },
+                }));
+              }
+            } catch (error) {
+              console.error('❌ Failed to refetch conversation:', error);
+            }
+          }
+          
           // Update message status to 'sent' and use server timestamp
           setConversations(prev => {
             const updated = { ...prev };
