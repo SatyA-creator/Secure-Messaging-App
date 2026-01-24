@@ -177,7 +177,7 @@ async def remove_contact_manually(admin_id: uuid.UUID, user_id: uuid.UUID, db: S
             detail=f"Failed to delete user: {str(e)}"
         )
 
-@router.post("/fix-media-table/{admin_id}")
+@router.get("/fix-media-table/{admin_id}")
 async def fix_media_table(admin_id: uuid.UUID, db: Session = Depends(get_db)):
     """Fix media_attachments table to allow nullable message_id (admin only)"""
     
