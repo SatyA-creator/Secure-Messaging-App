@@ -42,11 +42,11 @@ def is_allowed_file(filename: str) -> bool:
 @router.post("/upload")
 async def upload_media(
     file: UploadFile = File(...),
-    message_id: Optional[str] = Form(None),
+    message_id: Optional[str] = Form(None),  # Ignored - always set to None
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload media file and attach to message"""
+    """Upload media file (message_id will be linked later when message is created)"""
     
     # Validate file
     if not is_allowed_file(file.filename):
@@ -73,9 +73,10 @@ async def upload_media(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     # Create media record
+    # Don't set message_id yet - it will be linked when the message is created
     media = MediaAttachment(
         id=uuid.uuid4(),
-        message_id=uuid.UUID(message_id) if message_id else None,
+        message_id=None,  # Always None on upload, will be linked later
         file_name=file.filename,
         file_type=file.content_type or 'application/octet-stream',
         file_size=file_size,
@@ -83,13 +84,6 @@ async def upload_media(
     )
     
     db.add(media)
-    
-    # Update message if message_id provided
-    if message_id:
-        message = db.query(Message).filter(Message.id == uuid.UUID(message_id)).first()
-        if message:
-            message.has_media = True
-    
     db.commit()
     db.refresh(media)
     
