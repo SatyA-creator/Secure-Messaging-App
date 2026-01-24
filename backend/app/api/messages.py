@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.schemas.message import MessageCreate, MessageResponse
+from app.schemas.message import MessageCreate, MessageResponse, MediaAttachmentResponse
 from app.models.message import Message
 from app.models.user import User
+from app.models.media import MediaAttachment
 from typing import List
 import uuid
 
@@ -83,18 +84,37 @@ async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID,
         for i, msg in enumerate(messages[:3]):
             print(f"  Message {i+1}: sender={msg.sender_id}, recipient={msg.recipient_id}, content_length={len(msg.encrypted_content) if msg.encrypted_content else 0}")
     
-    return [
-        MessageResponse(
+    # Build response with media attachments
+    response = []
+    for msg in messages:
+        # Get media attachments for this message
+        media = db.query(MediaAttachment).filter(MediaAttachment.message_id == msg.id).all()
+        
+        response.append(MessageResponse(
             id=msg.id,
             sender_id=msg.sender_id,
             recipient_id=msg.recipient_id,
             encrypted_content=msg.encrypted_content,
             encrypted_session_key=msg.encrypted_session_key,
             created_at=msg.created_at,
-            is_read=msg.is_read
-        )
-        for msg in messages
-    ]
+            is_read=msg.is_read,
+            has_media=len(media) > 0,
+            media_attachments=[
+                MediaAttachmentResponse(
+                    id=m.id,
+                    file_name=m.file_name,
+                    file_type=m.file_type,
+                    file_size=m.file_size,
+                    file_url=m.file_url,
+                    category='image' if m.file_type.startswith('image/') else 'document',
+                    thumbnail_url=m.thumbnail_url,
+                    created_at=m.created_at
+                )
+                for m in media
+            ]
+        ))
+    
+    return response
 
 @router.put("/{message_id}/read")
 async def mark_message_read(message_id: uuid.UUID, db: Session = Depends(get_db)):
