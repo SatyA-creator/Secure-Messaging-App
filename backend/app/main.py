@@ -218,10 +218,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                         encrypted_content = payload.get("encrypted_content")
                         message_id = payload.get("message_id")
                         encrypted_session_key = payload.get("encrypted_session_key")
+                        media_ids = payload.get("media_ids", [])  # Get media IDs if any
                         
                         if recipient_id:
                             try:
                                 from app.models.message import Message
+                                from app.models.media import MediaAttachment
                                 from app.database import get_db
                                 from uuid import UUID
                                 import uuid as uuid_module
@@ -243,6 +245,17 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     db.add(db_message)
                                     db.commit()
                                     db.refresh(db_message)
+                                    
+                                    # Link media attachments to the message
+                                    if media_ids:
+                                        for media_id in media_ids:
+                                            media = db.query(MediaAttachment).filter(
+                                                MediaAttachment.id == UUID(media_id)
+                                            ).first()
+                                            if media:
+                                                media.message_id = msg_uuid
+                                        db.commit()
+                                        logger.info(f"📎 Linked {len(media_ids)} media files to message {msg_uuid}")
                                     
                                     timestamp = db_message.created_at.isoformat()
                                     message_id = str(db_message.id)
