@@ -10,8 +10,8 @@ class MediaAttachment(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # Message reference
-    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
+    # Message reference - nullable to allow upload before message creation
+    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=True)
     
     # File information
     file_name = Column(String(255), nullable=False)
