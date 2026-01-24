@@ -139,7 +139,8 @@ async def shutdown():
 
 
 # Root endpoint
-@app.get("/")
+@app.get("/", include_in_schema=True)
+@app.head("/", include_in_schema=False)
 async def root():
     return {
         "message": "Secure Messaging API",
@@ -151,6 +152,7 @@ async def root():
 
 # Health check endpoint
 @app.get("/health")
+@app.head("/health", include_in_schema=False)
 async def health_check():
     return {
         "status": "healthy",
