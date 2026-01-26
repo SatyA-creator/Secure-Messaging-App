@@ -303,10 +303,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                       senderId: msg.sender_id,
                       recipientId: msg.recipient_id,
                       encryptedContent: msg.encrypted_content,
-                      encryptedSessionKey: msg.encrypted_session_key,
-                      decryptedContent: decryptMessage(msg.encrypted_content, msg.encrypted_session_key || ''),
+                      decryptedContent: msg.encrypted_content?.replace('encrypted:', '') || '',
                       createdAt: new Date(msg.created_at),
                       isRead: msg.is_read,
+                      isEncrypted: msg.encrypted_content?.startsWith('encrypted:') || false,
                       status: 'sent' as MessageStatus,
                       mediaAttachments: msg.media_attachments || [],
                       mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
@@ -494,7 +494,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               : msg.encrypted_content,
             status: msg.is_read === true ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
             createdAt: new Date(msg.created_at),
-            isEncrypted: true,
+            isEncrypted: msg.encrypted_content?.startsWith('encrypted:') || false,
+            mediaAttachments: msg.media_attachments || [],
+            mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
           }));
           
           setConversations(prev => ({
