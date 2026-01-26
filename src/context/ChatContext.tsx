@@ -196,6 +196,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   status: 'delivered' as MessageStatus,
                   createdAt: serverTimestamp,  // Use server timestamp for consistency
                   isEncrypted: true,
+                  hasMedia: data.has_media || false,
+                  mediaAttachments: data.media_attachments || [],
                 }].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort by timestamp
               },
             };
@@ -318,7 +320,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
           }
           
-          // Update message status to 'sent' and use server timestamp
+          // Update message status to 'sent' and use server timestamp + media
           setConversations(prev => {
             const updated = { ...prev };
             Object.keys(updated).forEach(contactId => {
@@ -330,7 +332,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     m.id === messageId ? { 
                       ...m, 
                       status: 'sent' as MessageStatus,
-                      createdAt: serverTimestamp  // Use server timestamp for consistency
+                      createdAt: serverTimestamp,  // Use server timestamp for consistency
+                      hasMedia: data.has_media || m.hasMedia,
+                      mediaAttachments: data.media_attachments || m.mediaAttachments
                     } : m
                   ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort after update
                 };

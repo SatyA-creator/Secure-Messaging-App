@@ -56,9 +56,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                 encrypted_content = data.get("encrypted_content")
                 encrypted_session_key = data.get("encrypted_session_key")
                 message_id = data.get("message_id")  # Use frontend message ID if provided
+                has_media = data.get("has_media", False)
+                media_ids = data.get("media_ids", [])
                 
                 # Save message to database
                 from app.models.message import Message
+                from app.models.media import MediaAttachment
                 from uuid import UUID
                 import uuid as uuid_module
                 
@@ -67,11 +70,32 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                     sender_id=UUID(user_id),
                     recipient_id=UUID(recipient_id),
                     encrypted_content=encrypted_content,
-                    encrypted_session_key=encrypted_session_key
+                    encrypted_session_key=encrypted_session_key,
+                    has_media=has_media
                 )
                 db.add(db_message)
                 db.commit()
                 db.refresh(db_message)
+                
+                # Link media attachments to this message
+                media_attachments = []
+                if media_ids:
+                    for media_id in media_ids:
+                        media = db.query(MediaAttachment).filter(
+                            MediaAttachment.id == UUID(media_id)
+                        ).first()
+                        if media:
+                            media.message_id = db_message.id
+                            db.add(media)
+                            media_attachments.append({
+                                "id": str(media.id),
+                                "file_name": media.file_name,
+                                "file_type": media.file_type,
+                                "file_size": media.file_size,
+                                "file_url": media.file_url,
+                                "category": 'image' if media.file_type.startswith('image/') else 'document'
+                            })
+                    db.commit()
                 
                 # Use database timestamp for consistency
                 timestamp = db_message.created_at.isoformat()
@@ -83,7 +107,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                     "sender_id": user_id,
                     "encrypted_content": encrypted_content,
                     "encrypted_session_key": encrypted_session_key,
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "has_media": has_media,
+                    "media_attachments": media_attachments
                 })
                 
                 # Send confirmation to sender with same timestamp
@@ -91,7 +117,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                     "type": "message_sent",
                     "message_id": str(db_message.id),
                     "status": "sent",
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "has_media": has_media,
+                    "media_attachments": media_attachments
                 })
             
             elif data.get("type") == "delivery_confirmation":
