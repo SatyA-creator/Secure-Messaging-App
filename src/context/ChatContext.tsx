@@ -198,6 +198,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   isEncrypted: true,
                   hasMedia: data.has_media || false,
                   mediaAttachments: data.media_attachments || [],
+                  mediaUrls: data.media_attachments?.map((m: any) => m.file_url) || [],
                 }].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort by timestamp
               },
             };
@@ -334,7 +335,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                       status: 'sent' as MessageStatus,
                       createdAt: serverTimestamp,  // Use server timestamp for consistency
                       hasMedia: data.has_media || m.hasMedia,
-                      mediaAttachments: data.media_attachments || m.mediaAttachments
+                      mediaAttachments: data.media_attachments || m.mediaAttachments || [],
+                      mediaUrls: data.media_attachments?.map((media: any) => media.file_url) || m.mediaUrls || [],
                     } : m
                   ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort after update
                 };
@@ -565,6 +567,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       status: 'sending' as MessageStatus,
       createdAt: tempTimestamp,
       isEncrypted: true,
+      hasMedia: (files && files.length > 0) || false,
+      mediaAttachments: [],
+      mediaUrls: [],
     };
 
     // Add message optimistically to UI
