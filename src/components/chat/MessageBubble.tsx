@@ -15,6 +15,15 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                    (message.mediaUrls && message.mediaUrls.length > 0);
   const hasText = message.decryptedContent && message.decryptedContent.trim() !== '' && message.decryptedContent !== 'encrypted:';
 
+  // Debug logging
+  console.log('🖼️ MessageBubble render:', {
+    messageId: message.id,
+    hasMedia,
+    mediaAttachments: message.mediaAttachments,
+    mediaUrls: message.mediaUrls,
+    decryptedContent: message.decryptedContent
+  });
+
   return (
     <div
       className={cn(
