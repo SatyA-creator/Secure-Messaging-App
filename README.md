@@ -2,6 +2,8 @@
 
 A full-stack real-time messaging application with end-to-end encryption capabilities, built with React, FastAPI, and PostgreSQL.
 
+**Environment:** Staging
+
 ## 🚀 Features
 
 - **Real-time Messaging**: WebSocket-based instant messaging
