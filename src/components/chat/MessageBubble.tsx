@@ -44,7 +44,13 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
           <div className="space-y-2 mb-2">
             {/* From mediaAttachments array */}
             {message.mediaAttachments?.map((media, index) => {
-              const fullUrl = media.file_url.startsWith('http') ? media.file_url : `${ENV.API_URL}${media.file_url}`;
+              // Fix: Remove /api/v1 prefix if present to avoid duplication
+              const cleanUrl = media.file_url.startsWith('/api/v1') 
+                ? media.file_url.replace('/api/v1', '')
+                : media.file_url;
+              const fullUrl = cleanUrl.startsWith('http') 
+                ? cleanUrl 
+                : `${ENV.API_URL}${cleanUrl}`;
               
               if (media.category === 'image') {
                 return (
@@ -75,7 +81,13 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
             
             {/* From mediaUrls array (fallback) */}
             {message.mediaUrls?.map((mediaUrl, index) => {
-              const fullUrl = mediaUrl.startsWith('http') ? mediaUrl : `${ENV.API_URL}${mediaUrl}`;
+              // Fix: Remove /api/v1 prefix if present to avoid duplication
+              const cleanUrl = mediaUrl.startsWith('/api/v1')
+                ? mediaUrl.replace('/api/v1', '')
+                : mediaUrl;
+              const fullUrl = cleanUrl.startsWith('http') 
+                ? cleanUrl 
+                : `${ENV.API_URL}${cleanUrl}`;
               const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
               
               if (isImage) {
