@@ -48,10 +48,14 @@ export function messageToMarkdown(message: LocalMessage): string {
       sig: message.signature ?? 'UNSIGNED',
     };
 
-    return matter.stringify(safeContent, frontmatter);
+    console.log('📝 Creating markdown with frontmatter:', frontmatter);
+    const markdown = matter.stringify(safeContent, frontmatter);
+    console.log('✅ Markdown created, length:', markdown.length);
+    return markdown;
 
   } catch (error) {
     console.error('❌ messageToMarkdown FAILED:', error instanceof Error ? error.message : error);
+    console.error('   Error stack:', error instanceof Error ? error.stack : 'no stack');
     console.error('   Message object:', message);
     throw error;
   }
