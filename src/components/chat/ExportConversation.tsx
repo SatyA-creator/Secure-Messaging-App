@@ -22,11 +22,18 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
     try {
       const messages = await localStore.getConversation(contactId);
       console.log('📊 Got messages for export:', messages.length);
+      
+      // Debug: Log first message structure
+      if (messages.length > 0) {
+        console.log('🔍 First message structure:', JSON.stringify(messages[0], null, 2));
+      }
+      
       const markdown = conversationToMarkdown(messages);
       console.log('📝 Generated markdown, length:', markdown.length);
       downloadMarkdown(markdown, `conversation-${contactName}-all.md`);
     } catch (error) {
       console.error('❌ Export failed:', error);
+      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
     }

@@ -16,6 +16,15 @@ function assertMessageValid(message: LocalMessage) {
   if (message.content === null || message.content === undefined) {
     throw new Error('Message content is null or undefined');
   }
+  
+  // Log the message structure for debugging
+  console.log('✅ Message valid:', {
+    id: message.id,
+    from: message.from,
+    to: message.to,
+    timestamp: message.timestamp,
+    contentLength: typeof message.content === 'string' ? message.content.length : 'not a string'
+  });
 }
 
 /* ============================================================
@@ -93,12 +102,13 @@ export function conversationToMarkdown(
   messages.forEach((msg, idx) => {
     try {
       console.log(`▶️ Converting ${idx + 1}/${messages.length}`, msg.id);
+      console.log('   Message structure:', JSON.stringify(msg, null, 2));
       successful.push(messageToMarkdown(msg));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`❌ Message ${idx + 1} (${msg.id}) FAILED:`, errorMsg);
-      console.error('   Failed message object:', msg);
-      failed.push({ index: idx, id: msg.id, error: errorMsg });
+      console.error('   Failed message object:', JSON.stringify(msg, null, 2));
+      failed.push({ index: idx, id: msg.id, error: errorMsg, message: msg });
     }
   });
 
