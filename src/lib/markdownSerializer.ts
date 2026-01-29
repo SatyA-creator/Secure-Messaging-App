@@ -49,7 +49,14 @@ export function messageToMarkdown(message: LocalMessage): string {
     };
 
     console.log('📝 Creating markdown with frontmatter:', frontmatter);
-    const markdown = matter.stringify(safeContent, frontmatter);
+    
+    // Manual markdown generation (more reliable than gray-matter)
+    const yamlFrontmatter = Object.entries(frontmatter)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+    
+    const markdown = `---\n${yamlFrontmatter}\n---\n\n${safeContent}`;
+    
     console.log('✅ Markdown created, length:', markdown.length);
     return markdown;
 
