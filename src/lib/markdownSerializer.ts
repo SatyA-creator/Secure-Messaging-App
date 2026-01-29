@@ -95,16 +95,15 @@ export function conversationToMarkdown(
       console.log(`▶️ Converting ${idx + 1}/${messages.length}`, msg.id);
       successful.push(messageToMarkdown(msg));
     } catch (error) {
-      failed.push({ index: idx, id: msg.id, error });
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Message ${idx + 1} (${msg.id}) FAILED:`, errorMsg);
+      console.error('   Failed message object:', msg);
+      failed.push({ index: idx, id: msg.id, error: errorMsg });
     }
   });
 
   if (failed.length) {
-    console.group('⚠️ Failed Messages');
-    failed.forEach(f =>
-      console.error(`Message ${f.index + 1} (${f.id})`, f.error)
-    );
-    console.groupEnd();
+    console.warn(`⚠️ Failed Messages: ${failed.length}/${messages.length}`);
   }
 
   console.log(`✅ Exported ${successful.length}/${messages.length} messages`);
