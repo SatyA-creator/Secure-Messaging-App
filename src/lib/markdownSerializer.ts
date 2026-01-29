@@ -42,10 +42,8 @@ export function messageToMarkdown(message: LocalMessage): string {
     return matter.stringify(safeContent, frontmatter);
 
   } catch (error) {
-    console.group('❌ messageToMarkdown FAILED');
-    console.error('Message:', message);
-    console.error('Error:', error);
-    console.groupEnd();
+    console.error('❌ messageToMarkdown FAILED:', error instanceof Error ? error.message : error);
+    console.error('   Message object:', message);
     throw error;
   }
 }
