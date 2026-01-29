@@ -5,18 +5,23 @@ import { LocalMessage } from './localStore';
  * Convert a message object to Markdown format with frontmatter
  */
 export function messageToMarkdown(message: LocalMessage): string {
-  const frontmatter = {
-    id: message.id,
-    from: message.from,
-    to: message.to,
-    timestamp: message.timestamp,
-    sig: message.signature || 'UNSIGNED',
-  };
+  try {
+    const frontmatter = {
+      id: message.id,
+      from: message.from,
+      to: message.to,
+      timestamp: message.timestamp,
+      sig: message.signature || 'UNSIGNED',
+    };
 
-  // Create Markdown with frontmatter
-  const markdown = matter.stringify(message.content, frontmatter);
-  
-  return markdown;
+    // Create Markdown with frontmatter
+    const markdown = matter.stringify(message.content, frontmatter);
+    
+    return markdown;
+  } catch (error) {
+    console.error('❌ Error converting message to markdown:', error, message);
+    throw error;
+  }
 }
 
 /**
@@ -40,13 +45,23 @@ export function markdownToMessage(markdown: string): Partial<LocalMessage> {
  * Export an entire conversation to Markdown file
  */
 export function conversationToMarkdown(messages: LocalMessage[], date?: string): string {
-  const header = `# Conversation Export${date ? ` - ${date}` : ''}\n\n`;
-  
-  const messagesMarkdown = messages
-    .map(msg => messageToMarkdown(msg))
-    .join('\n\n---\n\n');
-  
-  return header + messagesMarkdown;
+  try {
+    console.log('📝 Converting', messages.length, 'messages to markdown');
+    const header = `# Conversation Export${date ? ` - ${date}` : ''}\n\n`;
+    
+    const messagesMarkdown = messages
+      .map((msg, idx) => {
+        console.log(`  Converting message ${idx + 1}/${messages.length}`);
+        return messageToMarkdown(msg);
+      })
+      .join('\n\n---\n\n');
+    
+    console.log('✅ Markdown conversion complete, total length:', header.length + messagesMarkdown.length);
+    return header + messagesMarkdown;
+  } catch (error) {
+    console.error('❌ Error in conversationToMarkdown:', error);
+    throw error;
+  }
 }
 
 /**
