@@ -566,17 +566,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           
           // 🆕 Sync server messages to local storage
           transformedMessages.forEach(async (msg) => {
-            await localStore.saveMessage({
-              id: msg.id,
-              conversationId: contactId,
-              from: msg.senderId,
-              to: msg.recipientId,
-              timestamp: msg.createdAt.toISOString(),
-              content: msg.decryptedContent,
-              signature: undefined,
-              synced: true,
-              createdAt: msg.createdAt.toISOString(),
-            });
+            try {
+              await localStore.saveMessage({
+                id: msg.id,
+                conversationId: contactId,
+                from: msg.senderId,
+                to: msg.recipientId,
+                timestamp: msg.createdAt.toISOString(),
+                content: msg.decryptedContent,
+                signature: undefined,
+                synced: true,
+              });
+            } catch (error) {
+              console.error('Failed to save message to local storage:', error);
+            }
           });
         }
       } catch (error) {
@@ -642,7 +645,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: content,
         signature: undefined,
         synced: false, // Not synced to server yet
-        createdAt: tempTimestamp.toISOString(),
       });
       console.log('💾 Message saved to local storage');
     } catch (error) {
