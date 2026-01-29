@@ -51,8 +51,15 @@ export function conversationToMarkdown(messages: LocalMessage[], date?: string):
     
     const messagesMarkdown = messages
       .map((msg, idx) => {
-        console.log(`  Converting message ${idx + 1}/${messages.length}`);
-        return messageToMarkdown(msg);
+        try {
+          console.log(`  Converting message ${idx + 1}/${messages.length}`, msg);
+          const md = messageToMarkdown(msg);
+          console.log(`  ✅ Message ${idx + 1} converted successfully`);
+          return md;
+        } catch (err) {
+          console.error(`  ❌ Failed to convert message ${idx + 1}:`, err, msg);
+          throw err;
+        }
       })
       .join('\n\n---\n\n');
     
