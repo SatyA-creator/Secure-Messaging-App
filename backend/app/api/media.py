@@ -15,8 +15,9 @@ from app.models.message import Message
 router = APIRouter()
 
 # Configuration
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+# Use /tmp for Render deployment (ephemeral but better than ./uploads)
+UPLOAD_DIR = Path("/tmp/uploads") if os.getenv("ENVIRONMENT") == "production" else Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
 
 # Allowed file types
 ALLOWED_EXTENSIONS = {

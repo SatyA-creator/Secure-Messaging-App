@@ -4,6 +4,8 @@ import { useAuth } from './AuthContext';
 import WebSocketService from '@/lib/websocket';
 import { ENV } from '@/config/env';
 import { MediaService } from '@/lib/mediaService';
+import { localStore } from '@/lib/localStore';
+import { offlineQueue } from '@/lib/offlineQueue';
 
 interface ChatContextType {
   contacts: Contact[];
@@ -149,6 +151,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .then(() => {
           setIsConnected(true);
           console.log('✅ Connected to WebSocket with authentication');
+          
+          // 🆕 Process offline queue on reconnect
+          offlineQueue.processQueue(async (message) => {
+            try {
+              wsRef.current?.send('message', {
+                recipient_id: message.to,
+                encrypted_content: `encrypted:${message.content}`,
+                encrypted_session_key: 'session-key-placeholder',
+                message_id: message.id,
+                has_media: false,
+                media_ids: []
+              });
+              return true; // Success
+            } catch (error) {
+              console.error('Failed to sync message:', error);
+              return false; // Failure
+            }
+          });
         })
         .catch((error) => {
           console.error('❌ Failed to connect to WebSocket:', error);
@@ -466,7 +486,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSelectedContactId(contactId);
     setSelectedGroupId(null);
     
-    // Fetch conversation history from backend
+    // 🆕 Load from local storage first (instant display)
+    try {
+      const localMessages = await localStore.getConversation(contactId);
+      if (localMessages.length > 0) {
+        console.log(`💾 Loaded ${localMessages.length} messages from local storage`);
+        
+        const transformedLocal: Message[] = localMessages.map(msg => ({
+          id: msg.id,
+          senderId: msg.from,
+          recipientId: msg.to,
+          encryptedContent: `encrypted:${msg.content}`,
+          decryptedContent: msg.content,
+          status: msg.synced ? 'sent' : 'sending',
+          createdAt: new Date(msg.timestamp),
+          isEncrypted: true,
+          mediaAttachments: [],
+          mediaUrls: [],
+        }));
+        
+        setConversations(prev => ({
+          ...prev,
+          [contactId]: {
+            contactId,
+            messages: transformedLocal,
+            isLoading: false,
+            hasMore: false,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load from local storage:', error);
+    }
+    
+    // Fetch conversation history from backend (background sync)
     if (user) {
       try {
         const token = localStorage.getItem('authToken');
@@ -510,6 +563,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               hasMore: false,
             },
           }));
+          
+          // 🆕 Sync server messages to local storage
+          transformedMessages.forEach(async (msg) => {
+            await localStore.saveMessage({
+              id: msg.id,
+              conversationId: contactId,
+              from: msg.senderId,
+              to: msg.recipientId,
+              timestamp: msg.createdAt.toISOString(),
+              content: msg.decryptedContent,
+              signature: undefined,
+              synced: true,
+              createdAt: msg.createdAt.toISOString(),
+            });
+          });
         }
       } catch (error) {
         console.error('Failed to load conversation:', error);
@@ -546,18 +614,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     console.log('   To (recipient):', recipientId);
     console.log('   Content:', content);
     console.log('   Files:', files?.length || 0);
-    
-    if (!wsRef.current?.isConnected()) {
-      console.error('❌ Cannot send message: WebSocket not connected');
-      throw new Error('WebSocket not connected. Please refresh the page.');
-    }
-
-    // Check if recipient is online to set initial status
-    const recipient = contacts.find(c => c.id === recipientId);
-    const isRecipientOnline = recipient?.isOnline || false;
 
     const messageId = crypto.randomUUID();
-    const tempTimestamp = new Date(); // Temporary timestamp, will be replaced by server timestamp
+    const tempTimestamp = new Date();
     const newMessage: Message = {
       id: messageId,
       senderId: user.id,
@@ -572,6 +631,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       mediaUrls: [],
     };
 
+    // 🆕 SAVE TO LOCAL STORAGE FIRST (always succeeds, even offline)
+    try {
+      await localStore.saveMessage({
+        id: messageId,
+        conversationId: recipientId,
+        from: user.id,
+        to: recipientId,
+        timestamp: tempTimestamp.toISOString(),
+        content: content,
+        signature: undefined,
+        synced: false, // Not synced to server yet
+        createdAt: tempTimestamp.toISOString(),
+      });
+      console.log('💾 Message saved to local storage');
+    } catch (error) {
+      console.error('Failed to save to local storage:', error);
+    }
+
     // Add message optimistically to UI
     setConversations(prev => ({
       ...prev,
@@ -580,6 +657,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages: [...(prev[recipientId]?.messages || []), newMessage],
       },
     }));
+
+    // 🆕 If offline, queue for later
+    if (!wsRef.current?.isConnected()) {
+      console.warn('⚠️ WebSocket offline - message queued for retry');
+      return; // offlineQueue will retry later
+    }
 
     try {
       // Upload files first if any
@@ -595,7 +678,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       wsRef.current.send('message', {
         recipient_id: recipientId,
         encrypted_content: newMessage.encryptedContent,
-        encrypted_session_key: 'session-key-placeholder', // Replace with actual encryption logic
+        encrypted_session_key: 'session-key-placeholder',
         message_id: messageId,
         has_media: mediaIds.length > 0,
         media_ids: mediaIds
@@ -603,8 +686,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       console.log(`📤 Message sent to ${recipientId}: "${content.substring(0, 50)}..."`);
       
-      // Message status will be updated by WebSocket event handlers
-      // (message_sent and message_delivered events)
+      // 🆕 Mark as synced in local storage
+      await localStore.markAsSynced(messageId);
 
     } catch (error) {
       console.error('❌ Failed to send message:', error);

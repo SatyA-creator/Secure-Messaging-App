@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import GroupChat from '../GroupChat';
 import api from '@/config/api';
+import { ExportConversation } from './ExportConversation';
 
 interface ChatWindowProps {
   onBack?: () => void;
@@ -175,6 +176,12 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
         </div>
 
         <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
+          {/* Export Conversation Button */}
+          <ExportConversation 
+            contactId={selectedContactId} 
+            contactName={selectedContact.fullName} 
+          />
+          
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-8 h-8 md:w-10 md:h-10 hidden sm:flex">
             <Phone className="w-4 h-4 md:w-5 md:h-5" />
           </Button>
