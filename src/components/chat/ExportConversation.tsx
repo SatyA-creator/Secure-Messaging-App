@@ -17,25 +17,30 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportAll = async () => {
+    console.log('🔵 Export All clicked for:', contactId, contactName);
     setIsExporting(true);
     try {
       const messages = await localStore.getConversation(contactId);
+      console.log('📊 Got messages for export:', messages.length);
       const markdown = conversationToMarkdown(messages);
+      console.log('📝 Generated markdown, length:', markdown.length);
       downloadMarkdown(markdown, `conversation-${contactName}-all.md`);
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error('❌ Export failed:', error);
     } finally {
       setIsExporting(false);
     }
   };
 
   const handleExportByDate = async () => {
+    console.log('🔵 Export By Date clicked for:', contactId, contactName);
     setIsExporting(true);
     try {
       const messages = await localStore.getConversation(contactId);
+      console.log('📊 Got messages for export:', messages.length);
       exportConversationByDate(contactId, messages);
     } catch (error) {
-      console.error('Export by date failed:', error);
+      console.error('❌ Export by date failed:', error);
     } finally {
       setIsExporting(false);
     }
