@@ -1,151 +1,230 @@
 import matter from 'gray-matter';
 import { LocalMessage } from './localStore';
 
-/**
- * Convert a message object to Markdown format with frontmatter
- */
+/* ============================================================
+   Validation Helpers
+============================================================ */
+
+function assertMessageValid(message: LocalMessage) {
+  if (!message) throw new Error('Message is null or undefined');
+
+  if (!message.id) throw new Error('Missing message.id');
+  if (!message.from) throw new Error('Missing message.from');
+  if (!message.to) throw new Error('Missing message.to');
+  if (!message.timestamp) throw new Error('Missing message.timestamp');
+
+  if (message.content === null || message.content === undefined) {
+    throw new Error('Message content is null or undefined');
+  }
+}
+
+/* ============================================================
+   Message → Markdown
+============================================================ */
+
 export function messageToMarkdown(message: LocalMessage): string {
   try {
+    assertMessageValid(message);
+
+    const safeContent =
+      typeof message.content === 'string'
+        ? message.content
+        : JSON.stringify(message.content, null, 2);
+
     const frontmatter = {
       id: message.id,
       from: message.from,
       to: message.to,
-      timestamp: message.timestamp,
-      sig: message.signature || 'UNSIGNED',
+      timestamp: new Date(message.timestamp).toISOString(),
+      sig: message.signature ?? 'UNSIGNED',
     };
 
-    // Create Markdown with frontmatter
-    const markdown = matter.stringify(message.content, frontmatter);
-    
-    return markdown;
+    return matter.stringify(safeContent, frontmatter);
+
   } catch (error) {
-    console.error('❌ Error converting message to markdown:', error, message);
+    console.group('❌ messageToMarkdown FAILED');
+    console.error('Message:', message);
+    console.error('Error:', error);
+    console.groupEnd();
     throw error;
   }
 }
 
-/**
- * Parse Markdown back to message object
- */
+/* ============================================================
+   Markdown → Message
+============================================================ */
+
 export function markdownToMessage(markdown: string): Partial<LocalMessage> {
-  const parsed = matter(markdown);
-  
-  return {
-    id: parsed.data.id,
-    from: parsed.data.from,
-    to: parsed.data.to,
-    timestamp: parsed.data.timestamp,
-    signature: parsed.data.sig !== 'UNSIGNED' ? parsed.data.sig : undefined,
-    content: parsed.content.trim(),
-    // conversationId will be determined by context
-  };
-}
-
-/**
- * Export an entire conversation to Markdown file
- */
-export function conversationToMarkdown(messages: LocalMessage[], date?: string): string {
   try {
-    console.log('📝 Converting', messages.length, 'messages to markdown');
-    const header = `# Conversation Export${date ? ` - ${date}` : ''}\n\n`;
-    
-    const messagesMarkdown = messages
-      .map((msg, idx) => {
-        try {
-          console.log(`  Converting message ${idx + 1}/${messages.length}`, msg);
-          const md = messageToMarkdown(msg);
-          console.log(`  ✅ Message ${idx + 1} converted successfully`);
-          return md;
-        } catch (err) {
-          console.error(`  ❌ Failed to convert message ${idx + 1}:`, err, msg);
-          throw err;
-        }
-      })
-      .join('\n\n---\n\n');
-    
-    console.log('✅ Markdown conversion complete, total length:', header.length + messagesMarkdown.length);
-    return header + messagesMarkdown;
+    const parsed = matter(markdown);
+
+    return {
+      id: parsed.data.id,
+      from: parsed.data.from,
+      to: parsed.data.to,
+      timestamp: parsed.data.timestamp,
+      signature:
+        parsed.data.sig && parsed.data.sig !== 'UNSIGNED'
+          ? parsed.data.sig
+          : undefined,
+      content: parsed.content.trim(),
+    };
   } catch (error) {
-    console.error('❌ Error in conversationToMarkdown:', error);
+    console.group('❌ markdownToMessage FAILED');
+    console.error('Markdown:', markdown);
+    console.error(error);
+    console.groupEnd();
     throw error;
   }
 }
 
-/**
- * Group messages by date for daily Markdown files
- */
-export function groupMessagesByDate(messages: LocalMessage[]): Map<string, LocalMessage[]> {
+/* ============================================================
+   Conversation → Markdown
+============================================================ */
+
+export function conversationToMarkdown(
+  messages: LocalMessage[],
+  date?: string
+): string {
+  console.group(`📝 Exporting ${messages.length} messages`);
+
+  const header = `# Conversation Export${date ? ` - ${date}` : ''}\n\n`;
+  const successful: string[] = [];
+  const failed: any[] = [];
+
+  messages.forEach((msg, idx) => {
+    try {
+      console.log(`▶️ Converting ${idx + 1}/${messages.length}`, msg.id);
+      successful.push(messageToMarkdown(msg));
+    } catch (error) {
+      failed.push({ index: idx, id: msg.id, error });
+    }
+  });
+
+  if (failed.length) {
+    console.group('⚠️ Failed Messages');
+    failed.forEach(f =>
+      console.error(`Message ${f.index + 1} (${f.id})`, f.error)
+    );
+    console.groupEnd();
+  }
+
+  console.log(`✅ Exported ${successful.length}/${messages.length} messages`);
+  console.groupEnd();
+
+  if (!successful.length) {
+    throw new Error('No messages could be exported');
+  }
+
+  return header + successful.join('\n\n---\n\n');
+}
+
+/* ============================================================
+   Group Messages By Date
+============================================================ */
+
+export function groupMessagesByDate(
+  messages: LocalMessage[]
+): Map<string, LocalMessage[]> {
   const grouped = new Map<string, LocalMessage[]>();
-  
+
   messages.forEach(msg => {
     const date = new Date(msg.timestamp).toISOString().split('T')[0];
-    
-    if (!grouped.has(date)) {
-      grouped.set(date, []);
-    }
+    if (!grouped.has(date)) grouped.set(date, []);
     grouped.get(date)!.push(msg);
   });
-  
+
   return grouped;
 }
 
-/**
- * Create downloadable Markdown file
- */
+/* ============================================================
+   Download Markdown File
+============================================================ */
+
 export function downloadMarkdown(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-  
-  console.log('📥 Markdown file downloaded:', filename);
+  try {
+    if (!content || !content.trim()) {
+      throw new Error('Markdown content is empty');
+    }
+
+    const blob = new Blob([content], {
+      type: 'text/markdown;charset=utf-8',
+    });
+
+    if (!blob.size) {
+      throw new Error('Generated blob is empty');
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    console.log('📥 Download started:', filename);
+
+  } catch (error) {
+    console.group('❌ downloadMarkdown FAILED');
+    console.error('Filename:', filename);
+    console.error(error);
+    console.groupEnd();
+    throw error;
+  }
 }
 
-/**
- * Export conversation as Markdown files (grouped by date)
- */
+/* ============================================================
+   Export Conversation (Grouped By Date)
+============================================================ */
+
 export function exportConversationByDate(
   conversationId: string,
   messages: LocalMessage[]
 ): void {
-  const grouped = groupMessagesByDate(messages);
-  
-  grouped.forEach((msgs, date) => {
-    const markdown = conversationToMarkdown(msgs, date);
-    downloadMarkdown(markdown, `conversation-${conversationId}-${date}.md`);
-  });
-  
-  console.log(`📦 Exported ${grouped.size} Markdown files for conversation ${conversationId}`);
+  try {
+    const grouped = groupMessagesByDate(messages);
+
+    grouped.forEach((msgs, date) => {
+      const markdown = conversationToMarkdown(msgs, date);
+      downloadMarkdown(
+        markdown,
+        `conversation-${conversationId}-${date}.md`
+      );
+    });
+
+    console.log(
+      `📦 Exported ${grouped.size} file(s) for conversation ${conversationId}`
+    );
+  } catch (error) {
+    console.group('🚨 exportConversationByDate FAILED');
+    console.error(error);
+    console.groupEnd();
+    throw error;
+  }
 }
 
-/**
- * Import messages from Markdown file content
- */
-export function importFromMarkdown(markdownContent: string): Partial<LocalMessage>[] {
-  // Split by separator
-  const sections = markdownContent.split(/\n---\n/);
-  
+/* ============================================================
+   Import Messages From Markdown
+============================================================ */
+
+export function importFromMarkdown(
+  markdownContent: string
+): Partial<LocalMessage>[] {
+  const sections = markdownContent.split(/\n\n---\n\n/);
   const messages: Partial<LocalMessage>[] = [];
-  
+
   sections.forEach(section => {
-    // Skip headers and empty sections
-    if (section.trim().startsWith('#') || !section.trim()) {
-      return;
-    }
-    
+    if (!section.trim() || section.trim().startsWith('#')) return;
+
     try {
-      const msg = markdownToMessage(section);
-      messages.push(msg);
+      messages.push(markdownToMessage(section));
     } catch (error) {
-      console.warn('Failed to parse message section:', error);
+      console.warn('⚠️ Skipped invalid markdown section', error);
     }
   });
-  
+
   return messages;
 }
