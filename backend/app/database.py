@@ -15,17 +15,19 @@ pool_recycle = 3600
 if "sqlite" in settings.DATABASE_URL:
     connect_args["check_same_thread"] = False
 elif "postgresql" in settings.DATABASE_URL or "postgres" in settings.DATABASE_URL:
-    # Check if using pgbouncer (Supabase Transaction Pooler)
+    # Check if using pgbouncer (Supabase Transaction Pooler) or Neon pooled connection
     is_pgbouncer = "pgbouncer=true" in settings.DATABASE_URL or "6543" in settings.DATABASE_URL
+    is_neon_pooled = "-pooler" in settings.DATABASE_URL
     
-    if is_pgbouncer:
-        # PgBouncer/Transaction Pooler settings (port 6543)
-        logger.info("🔄 Using Supabase Transaction Pooler (pgbouncer) - port 6543")
+    if is_pgbouncer or is_neon_pooled:
+        # PgBouncer/Transaction Pooler or Neon pooled connection settings
+        pooler_type = "Neon pooled connection" if is_neon_pooled else "Supabase Transaction Pooler (pgbouncer)"
+        logger.info(f"🔄 Using {pooler_type}")
         connect_args = {
             "connect_timeout": 15,
             "application_name": "messaging-app",
         }
-        # CRITICAL: Disable pool_pre_ping with pgbouncer
+        # CRITICAL: Disable pool_pre_ping with poolers
         pool_pre_ping = False
         pool_recycle = 300  # 5 minutes
     else:
