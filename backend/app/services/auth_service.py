@@ -7,9 +7,25 @@ from datetime import datetime, timedelta
 from app.config import settings
 from typing import Optional
 import secrets
+import base64
+import uuid
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_public_key_entry(public_key_data: str = None, username: str = None) -> list:
+    """Helper: Create public_keys array entry"""
+    if not public_key_data and username:
+        public_key_data = f"pubkey_{username}"
+    
+    key_bytes = public_key_data.encode('utf-8') if isinstance(public_key_data, str) else public_key_data
+    return [{
+        "key_id": f"key-{uuid.uuid4()}",
+        "algorithm": "SECP256R1",
+        "key_data": base64.b64encode(key_bytes).decode('utf-8') if isinstance(key_bytes, bytes) else key_bytes,
+        "created_at": datetime.utcnow().isoformat(),
+        "status": "active"
+    }]
 
 class AuthService:
     """Authentication service for user registration, login, and JWT token management"""
@@ -58,12 +74,18 @@ class AuthService:
         # Create new user
         hashed_password = AuthService.hash_password(user_data.password)
         
+        # Create public_keys array
+        public_keys = create_public_key_entry(
+            public_key_data=user_data.public_key if hasattr(user_data, 'public_key') else None,
+            username=user_data.username
+        )
+        
         new_user = User(
             username=user_data.username,
             email=user_data.email,
             hashed_password=hashed_password,
             full_name=user_data.full_name,
-            public_key=user_data.public_key or "",
+            public_keys=public_keys,
             role=user_data.role or "user",
             is_active=True,
             is_verified=False

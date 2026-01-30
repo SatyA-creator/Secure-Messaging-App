@@ -40,13 +40,22 @@ export function messageToMarkdown(message: LocalMessage): string {
         ? message.content
         : JSON.stringify(message.content, null, 2);
 
-    const frontmatter = {
+    const frontmatter: Record<string, any> = {
       id: message.id,
       from: message.from,
       to: message.to,
       timestamp: new Date(message.timestamp).toISOString(),
       sig: message.signature ?? 'UNSIGNED',
+      // Cryptographic metadata for algorithm agility
+      cryptoVersion: message.cryptoVersion ?? 'v1',
+      encryptionAlgorithm: message.encryptionAlgorithm ?? 'ECDH-AES256-GCM',
+      kdfAlgorithm: message.kdfAlgorithm ?? 'HKDF-SHA256',
     };
+    
+    // Include multi-signature data if present
+    if (message.signatures && message.signatures.length > 0) {
+      frontmatter.signatures = JSON.stringify(message.signatures);
+    }
 
     console.log('📝 Creating markdown with frontmatter:', frontmatter);
     
@@ -76,7 +85,7 @@ export function markdownToMessage(markdown: string): Partial<LocalMessage> {
   try {
     const parsed = matter(markdown);
 
-    return {
+    const message: Partial<LocalMessage> = {
       id: parsed.data.id,
       from: parsed.data.from,
       to: parsed.data.to,
@@ -86,7 +95,24 @@ export function markdownToMessage(markdown: string): Partial<LocalMessage> {
           ? parsed.data.sig
           : undefined,
       content: parsed.content.trim(),
+      // Parse cryptographic metadata (with backward compatibility)
+      cryptoVersion: parsed.data.cryptoVersion,
+      encryptionAlgorithm: parsed.data.encryptionAlgorithm,
+      kdfAlgorithm: parsed.data.kdfAlgorithm,
     };
+    
+    // Parse multi-signature array if present
+    if (parsed.data.signatures) {
+      try {
+        message.signatures = typeof parsed.data.signatures === 'string' 
+          ? JSON.parse(parsed.data.signatures) 
+          : parsed.data.signatures;
+      } catch (e) {
+        console.warn('Failed to parse signatures, skipping:', e);
+      }
+    }
+    
+    return message;
   } catch (error) {
     console.group('❌ markdownToMessage FAILED');
     console.error('Markdown:', markdown);

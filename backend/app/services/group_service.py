@@ -6,6 +6,7 @@ from datetime import datetime
 
 from app.models.group import Group, GroupMember, GroupMessage, GroupReadReceipt
 from app.models.user import User
+from app.api.auth import get_active_public_key  # Helper for public_keys
 
 class GroupService:
     
@@ -181,7 +182,7 @@ class GroupService:
                 "username": member.User.username,
                 "email": member.User.email,
                 "full_name": member.User.full_name,
-                "public_key": member.User.public_key,
+                "public_key": get_active_public_key(member.User.public_keys) if member.User.public_keys else None,
                 "avatar_url": member.User.avatar_url,
                 "role": member.GroupMember.role,
                 "joined_at": member.GroupMember.joined_at
@@ -199,7 +200,7 @@ class GroupService:
                     "username": admin_user.username,
                     "email": admin_user.email,
                     "full_name": admin_user.full_name,
-                    "public_key": admin_user.public_key,
+                    "public_key": get_active_public_key(admin_user.public_keys) if admin_user.public_keys else None,
                     "avatar_url": admin_user.avatar_url,
                     "role": "admin",
                     "joined_at": group.created_at  # Use group creation time as admin join time

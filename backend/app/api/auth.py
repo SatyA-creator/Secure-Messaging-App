@@ -8,9 +8,34 @@ import bcrypt
 import jwt
 from datetime import datetime, timedelta
 from app.config import settings
+import base64
+import uuid
 
 router = APIRouter()
 security = HTTPBearer()
+
+def create_public_key_entry(username: str) -> list:
+    """Helper: Create initial public_keys array for new user"""
+    public_key_string = f"pubkey_{username}"
+    public_key_bytes = public_key_string.encode('utf-8')
+    return [{
+        "key_id": f"key-{uuid.uuid4()}",
+        "algorithm": "SECP256R1",
+        "key_data": base64.b64encode(public_key_bytes).decode('utf-8'),
+        "created_at": datetime.utcnow().isoformat(),
+        "status": "active"
+    }]
+
+def get_active_public_key(public_keys: list) -> str:
+    """Helper: Get active public key from public_keys array"""
+    if not public_keys:
+        return None
+    # Return first active key's data (base64 encoded)
+    for key in public_keys:
+        if key.get("status") == "active":
+            return key.get("key_data")
+    # Fallback to first key if no active key found
+    return public_keys[0].get("key_data") if public_keys else None
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT token and return user_id"""
@@ -58,10 +83,8 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
         # Hash password
         password_hash = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
         
-        # ✅ Generate public key as BYTES (not string)
-        import base64
-        public_key_string = f"pubkey_{user.username}"
-        public_key_bytes = public_key_string.encode('utf-8')  # Convert to bytes
+        # Create public_keys array with initial key
+        public_keys = create_public_key_entry(user.username)
         
         # Create user
         db_user = User(
@@ -69,7 +92,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
             username=user.username,
             password_hash=password_hash.decode(),
             full_name=user.full_name,
-            public_key=public_key_bytes  # ✅ Store as bytes
+            public_keys=public_keys
         )
         
         db.add(db_user)
@@ -83,10 +106,10 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
             expires_delta=access_token_expires
         )
         
-        # ✅ Convert public_key bytes to string for JSON response
-        public_key_str = base64.b64encode(db_user.public_key).decode('utf-8')
+        # Get active public key from public_keys array
+        public_key_str = get_active_public_key(db_user.public_keys)
         
-        # ✅ Return token and user data
+        # Return token and user data
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -95,7 +118,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
                 "email": db_user.email,
                 "username": db_user.username,
                 "full_name": db_user.full_name,
-                "public_key": public_key_str,  # ✅ Return as base64 string
+                "public_key": public_key_str,
                 "is_active": db_user.is_active,
                 "avatar_url": db_user.avatar_url,
                 "role": db_user.role,
@@ -148,15 +171,8 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile"""
-    import base64
-    
-    # Convert public_key bytes to base64 string if exists
-    public_key_str = None
-    if current_user.public_key:
-        if isinstance(current_user.public_key, bytes):
-            public_key_str = base64.b64encode(current_user.public_key).decode('utf-8')
-        else:
-            public_key_str = current_user.public_key
+    # Get active public key from public_keys array
+    public_key_str = get_active_public_key(current_user.public_keys) if current_user.public_keys else None
     
     return UserResponse(
         id=current_user.id,

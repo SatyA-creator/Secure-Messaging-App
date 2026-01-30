@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, LargeBinary, Index
+from sqlalchemy import Column, String, Boolean, DateTime, LargeBinary, Index, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
 import uuid
@@ -13,8 +13,9 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     
-    # Encryption Keys
-    public_key = Column(LargeBinary, nullable=False)
+    # Encryption Keys (Multi-key storage for algorithm agility and key rotation)
+    # Structure: [{"key_id": str, "algorithm": str, "key_data": bytes, "created_at": str, "status": str}]
+    public_keys = Column(JSON, nullable=False)
     
     # User Info
     full_name = Column(String(255), nullable=True)

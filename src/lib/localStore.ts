@@ -9,6 +9,18 @@ export interface LocalMessage {
   timestamp: string;
   content: string;
   signature?: string;
+  
+  // Cryptographic metadata for algorithm agility
+  cryptoVersion?: string;
+  encryptionAlgorithm?: string;
+  kdfAlgorithm?: string;
+  signatures?: Array<{
+    algorithm: string;
+    signature: string;
+    key_id?: string;
+    timestamp?: string;
+  }>;
+  
   synced: boolean;
   createdAt: Date;
 }
@@ -16,7 +28,14 @@ export interface LocalMessage {
 export interface ConversationMeta {
   id: string;
   participants: string[];
-  publicKeys: Record<string, string>;
+  // Multi-key storage per user: userId -> array of key versions
+  publicKeys: Record<string, Array<{
+    keyId: string;
+    algorithm: string;
+    keyData: string;
+    createdAt: string;
+    status?: string;
+  }>>;
   lastMessage?: Date;
   settings?: Record<string, any>;
 }
@@ -31,7 +50,7 @@ class LocalMessagingDB extends Dexie {
     
     // Define schema
     this.version(1).stores({
-      messages: 'id, conversationId, from, to, timestamp, synced',
+      messages: 'id, conversationId, from, to, timestamp, synced, cryptoVersion',
       conversations: 'id, *participants, lastMessage'
     });
   }

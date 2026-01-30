@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, Index, Boolean
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, Index, Boolean, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -18,6 +18,14 @@ class Message(Base):
     # Encrypted Content (stored as text for compatibility)
     encrypted_content = Column(Text, nullable=False)
     encrypted_session_key = Column(Text, nullable=False)
+    
+    # Cryptographic Metadata (for algorithm agility and PQ readiness)
+    crypto_version = Column(Text, nullable=False, default="v1", server_default="v1")
+    encryption_algorithm = Column(Text, nullable=False, default="ECDH-AES256-GCM", server_default="ECDH-AES256-GCM")
+    kdf_algorithm = Column(Text, nullable=False, default="HKDF-SHA256", server_default="HKDF-SHA256")
+    
+    # Multi-signature support (JSON array for hybrid classical + PQ signatures)
+    signatures = Column(JSON, nullable=True, default=list)
     
     # Status (Boolean: False=unread/not deleted, True=read/deleted)
     is_read = Column(Boolean, default=False)

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from app.api.auth import get_active_public_key  # Helper for public_keys
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.contact import ContactCreate, ContactResponse
@@ -82,7 +83,7 @@ async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(ge
             contact_email=user.email,
             contact_username=user.username,
             contact_full_name=user.full_name,
-            contact_public_key=user.public_key,
+            contact_public_key=get_active_public_key(user.public_keys) if user.public_keys else None,
             contact_last_seen=user.last_seen
         ))
     
@@ -125,7 +126,7 @@ async def get_all_users(user_id: uuid.UUID = Query(...), db: Session = Depends(g
             contact_email=user.email,
             contact_username=user.username,
             contact_full_name=user.full_name,
-            contact_public_key=user.public_key,
+            contact_public_key=get_active_public_key(user.public_keys) if user.public_keys else None,
             contact_last_seen=user.last_seen
         ))
     
