@@ -41,6 +41,10 @@ class WebSocketService {
         this.ws.onopen = () => {
           console.log('✅ WebSocket connected with authentication');
           this.reconnectAttempts = 0;
+          
+          // Fetch pending relay messages on connect
+          this.fetchPendingMessages();
+          
           resolve();
         };
 
@@ -82,9 +86,16 @@ class WebSocketService {
   private handleMessage(data: any) {
     // Handle both formats: { type, payload } and { type, ...rest }
     const messageType = data.type;
-    const payload = data.payload || data;
+    const payload = data.payload || data.data || data;
     
     console.log(`📨 Handling message type: ${messageType}`);
+    
+    // Handle relay messages specially
+    if (messageType === 'relay_message') {
+      console.log('📬 Received relay message:', payload);
+      this.handleRelayMessage(payload);
+      return;
+    }
     
     const handlers = this.eventHandlers.get(messageType) || [];
     handlers.forEach(handler => {
@@ -94,6 +105,37 @@ class WebSocketService {
         console.error(`❌ Error in handler for ${messageType}:`, error);
       }
     });
+  }
+  
+  private async handleRelayMessage(relayMsg: any) {
+    try {
+      // Import relayClient dynamically to avoid circular deps
+      const { relayClient } = await import('./relayClient');
+      const userId = this.userId;
+      
+      if (userId) {
+        await relayClient.processRelayMessage(relayMsg, userId);
+      }
+    } catch (error) {
+      console.error('❌ Failed to handle relay message:', error);
+    }
+  }
+  
+  private async fetchPendingMessages() {
+    try {
+      console.log('📬 Fetching pending relay messages...');
+      const { relayClient } = await import('./relayClient');
+      const pendingMessages = await relayClient.fetchPendingMessages();
+      
+      if (pendingMessages.length > 0) {
+        console.log(`📥 Processing ${pendingMessages.length} pending relay messages`);
+        for (const msg of pendingMessages) {
+          await relayClient.processRelayMessage(msg, this.userId);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch pending messages:', error);
+    }
   }
 
   private handleReconnect() {

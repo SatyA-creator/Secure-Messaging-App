@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import init_db
 from app.api import router as api_router
 from app.services.email_queue import EmailQueue
+from app.services.relay_service import relay_service
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +103,10 @@ async def startup():
     
     asyncio.create_task(EmailQueue.start_worker())
     logger.info("🚀 Email queue worker started")
+    
+    # Start relay service background cleanup
+    relay_service.start()
+    logger.info("📬 Relay service started (TTL-based auto-cleanup enabled)")
     
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📧 Frontend URL: {settings.FRONTEND_URL}")

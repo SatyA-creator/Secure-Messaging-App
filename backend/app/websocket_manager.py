@@ -4,10 +4,14 @@ from fastapi import WebSocket
 import json
 import redis
 from app.config import settings
+from app.services.relay_service import relay_service
 
 
 class ConnectionManager:
-    """Manages WebSocket connections and real-time message routing"""
+    """
+    Manages WebSocket connections and real-time message routing.
+    Integrated with relay service for offline message queuing.
+    """
     
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}  # user_id -> websocket
@@ -31,9 +35,15 @@ class ConnectionManager:
             self.redis_client = None
     
     async def connect(self, user_id: str, websocket: WebSocket):
-        """Register new WebSocket connection"""
+        """
+        Register new WebSocket connection and mark user online in relay service.
+        Automatically deliver pending relay messages.
+        """
         await websocket.accept()
         self.active_connections[user_id] = websocket
+        
+        # Mark user as online in relay service
+        relay_service.mark_user_online(user_id)
         
         # Publish user online event to Redis (if available)
         if self.redis_client:
@@ -46,11 +56,17 @@ class ConnectionManager:
                 print(f"⚠️ Redis publish error: {e}")
         
         print(f"✅ User {user_id} connected. Total: {len(self.active_connections)}")
+        
+        # Deliver pending relay messages
+        await self._deliver_pending_messages(user_id)
     
     def disconnect(self, user_id: str):
-        """Remove WebSocket connection"""
+        """Remove WebSocket connection and mark user offline in relay service"""
         if user_id in self.active_connections:
             del self.active_connections[user_id]
+        
+        # Mark user as offline in relay service
+        relay_service.mark_user_offline(user_id)
         
         # Clean up user rooms
         if user_id in self.user_rooms:
@@ -72,17 +88,44 @@ class ConnectionManager:
         print(f"❌ User {user_id} disconnected. Total: {len(self.active_connections)}")
     
     async def send_personal_message(self, user_id: str, message: dict):
-        """Send message to specific user"""
+        """
+        Send message to specific user if online, otherwise queue in relay service.
+        This is the core relay pattern: instant delivery or TTL-based queuing.
+        """
         if user_id in self.active_connections:
+            # User is online - deliver immediately
             websocket = self.active_connections[user_id]
             try:
                 await websocket.send_json(message)
                 print(f"✅ Message sent to {user_id}: {message.get('type', 'unknown')}")
+                return True
             except Exception as e:
                 print(f"❌ Error sending to {user_id}: {e}")
                 self.disconnect(user_id)
+                return False
         else:
-            print(f"⏸️ User {user_id} is offline, message not sent")
+            # User is offline - message will be queued by caller if needed
+            print(f"⏸️ User {user_id} is offline, caller should queue for relay")
+            return False
+    
+    async def _deliver_pending_messages(self, user_id: str):
+        """
+        Deliver all pending relay messages to newly connected user.
+        Called automatically on connect.
+        """
+        pending_messages = relay_service.get_pending_messages(user_id)
+        
+        if pending_messages:
+            print(f"📬 Delivering {len(pending_messages)} pending messages to {user_id}")
+            
+            for relay_msg in pending_messages:
+                message_payload = {
+                    "type": "relay_message",
+                    "data": relay_msg.to_dict()
+                }
+                await self.send_personal_message(user_id, message_payload)
+        else:
+            print(f"📭 No pending messages for {user_id}")
     
     async def broadcast(self, message: dict, exclude_user: Optional[str] = None):
         """Broadcast message to all connected users"""
