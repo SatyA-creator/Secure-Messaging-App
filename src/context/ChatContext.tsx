@@ -6,6 +6,7 @@ import { ENV } from '@/config/env';
 import { MediaService } from '@/lib/mediaService';
 import { localStore } from '@/lib/localStore';
 import { offlineQueue } from '@/lib/offlineQueue';
+import { relayClient } from '@/lib/relayClient';
 
 interface ChatContextType {
   contacts: Contact[];
@@ -152,17 +153,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setIsConnected(true);
           console.log('✅ Connected to WebSocket with authentication');
           
-          // 🆕 Process offline queue on reconnect
+          // 🆕 Process offline queue on reconnect using relay service
           offlineQueue.processQueue(async (message) => {
             try {
-              wsRef.current?.send('message', {
-                recipient_id: message.to,
-                encrypted_content: `encrypted:${message.content}`,
-                encrypted_session_key: 'session-key-placeholder',
-                message_id: message.id,
-                has_media: false,
-                media_ids: []
-              });
+              // Use relay service for offline message sync
+              await relayClient.sendMessage(
+                message.to,
+                `encrypted:${message.content}`,
+                'session-key-placeholder',
+                {
+                  cryptoVersion: 'v1',
+                  encryptionAlgorithm: 'ECDH-AES256-GCM',
+                  kdfAlgorithm: 'HKDF-SHA256',
+                }
+              );
               return true; // Success
             } catch (error) {
               console.error('Failed to sync message:', error);
@@ -676,17 +680,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         console.log(`✅ Uploaded ${mediaIds.length} file(s)`);
       }
 
-      // ✅ ACTUALLY SEND MESSAGE VIA WEBSOCKET
-      wsRef.current.send('message', {
-        recipient_id: recipientId,
-        encrypted_content: newMessage.encryptedContent,
-        encrypted_session_key: 'session-key-placeholder',
-        message_id: messageId,
-        has_media: mediaIds.length > 0,
-        media_ids: mediaIds
-      });
+      // ✅ SEND MESSAGE VIA RELAY SERVICE (Phase 3)
+      console.log('📨 Sending message via relay service...');
+      const relayResponse = await relayClient.sendMessage(
+        recipientId,
+        newMessage.encryptedContent,
+        'session-key-placeholder', // Will be real ECDH key in Phase 2
+        {
+          cryptoVersion: 'v1',
+          encryptionAlgorithm: 'ECDH-AES256-GCM',
+          kdfAlgorithm: 'HKDF-SHA256',
+        }
+      );
       
-      console.log(`📤 Message sent to ${recipientId}: "${content.substring(0, 50)}..."`);
+      console.log(`📤 Message sent via relay: ${relayResponse.status} (expires: ${relayResponse.expires_at})`);
+      console.log(`   Message ID: ${messageId}`);
+      console.log(`   Recipient: ${recipientId}`);
       
       // 🆕 Mark as synced in local storage
       await localStore.markAsSynced(messageId);
