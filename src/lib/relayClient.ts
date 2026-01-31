@@ -44,7 +44,7 @@ export class RelayClient {
       signatures?: any[];
     }
   ): Promise<{ success: boolean; message_id: string; status: string; expires_at: string }> {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken');
     
     console.log('🔄 Relay API call:', {
       url: `${this.baseUrl}/send`,
@@ -86,7 +86,7 @@ export class RelayClient {
    * Acknowledge message delivery - server deletes the message
    */
   async acknowledgeMessage(messageId: string): Promise<boolean> {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken');
     
     try {
       const response = await fetch(`${this.baseUrl}/acknowledge`, {
@@ -118,7 +118,7 @@ export class RelayClient {
    * Fetch pending relay messages on reconnect
    */
   async fetchPendingMessages(): Promise<RelayMessage[]> {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken');
     
     try {
       const response = await fetch(`${this.baseUrl}/pending`, {
