@@ -46,6 +46,12 @@ export class RelayClient {
   ): Promise<{ success: boolean; message_id: string; status: string; expires_at: string }> {
     const token = localStorage.getItem('token');
     
+    console.log('🔄 Relay API call:', {
+      url: `${this.baseUrl}/send`,
+      recipientId,
+      hasToken: !!token
+    });
+    
     const response = await fetch(`${this.baseUrl}/send`, {
       method: 'POST',
       headers: {
@@ -63,11 +69,17 @@ export class RelayClient {
       })
     });
 
+    console.log('📡 Relay API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`Relay send failed: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ Relay API error:', errorText);
+      throw new Error(`Relay send failed: ${response.statusText} - ${errorText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('✅ Relay API success:', result);
+    return result;
   }
 
   /**
