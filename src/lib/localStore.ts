@@ -71,6 +71,14 @@ export class LocalStore {
       createdAt: new Date()
     };
     
+    // ✅ Check if message already exists to avoid duplicates
+    const existing = await db.messages.get(msg.id);
+    if (existing) {
+      console.log('⚠️ Message already exists in local storage, updating:', msg.id);
+      await db.messages.update(msg.id, msg);
+      return msg;
+    }
+    
     await db.messages.add(msg);
     
     // Update conversation metadata

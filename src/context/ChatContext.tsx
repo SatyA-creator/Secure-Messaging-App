@@ -180,7 +180,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
 
       // ✅ CRITICAL FIX #2: Set up event listeners for incoming messages
-      const handleNewMessage = (data: any) => {
+      const handleNewMessage = async (data: any) => {
         console.log('📨 New message received:', data);
         
         const senderId = data.sender_id || data.senderId;
@@ -188,6 +188,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
         
         if (senderId) {
+          // ✅ SAVE TO LOCAL STORAGE FIRST
+          const encryptedContent = data.encrypted_content || '';
+          const decryptedContent = typeof encryptedContent === 'string' && encryptedContent.startsWith('encrypted:')
+            ? encryptedContent.substring(10)
+            : encryptedContent;
+          
+          try {
+            await localStore.saveMessage({
+              id: messageId,
+              conversationId: senderId,
+              from: senderId,
+              to: user.id,
+              timestamp: serverTimestamp.toISOString(),
+              content: decryptedContent,
+              signature: undefined,
+              synced: true,
+            });
+            console.log('💾 Saved received message to local storage:', messageId);
+          } catch (error) {
+            console.error('Failed to save received message to local storage:', error);
+          }
+          
           // Add message to conversation - avoid duplicates
           setConversations(prev => {
             const existingConversation = prev[senderId] || { 
@@ -212,11 +234,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   id: messageId,
                   senderId: senderId,
                   recipientId: user.id,
-                  encryptedContent: data.encrypted_content,
-                  // Strip 'encrypted:' prefix for display
-                  decryptedContent: typeof data.encrypted_content === 'string' && data.encrypted_content.startsWith('encrypted:')
-                    ? data.encrypted_content.substring(10)
-                    : data.encrypted_content,
+                  encryptedContent: encryptedContent,
+                  decryptedContent: decryptedContent,
                   status: 'delivered' as MessageStatus,
                   createdAt: serverTimestamp,  // Use server timestamp for consistency
                   isEncrypted: true,
@@ -491,29 +510,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSelectedGroupId(null);
     
     // 🆕 Load from local storage first (instant display)
+    const messageMap = new Map<string, Message>();
+    
     try {
       const localMessages = await localStore.getConversation(contactId);
       if (localMessages.length > 0) {
         console.log(`💾 Loaded ${localMessages.length} messages from local storage`);
         
-        const transformedLocal: Message[] = localMessages.map(msg => ({
-          id: msg.id,
-          senderId: msg.from,
-          recipientId: msg.to,
-          encryptedContent: `encrypted:${msg.content}`,
-          decryptedContent: msg.content,
-          status: msg.synced ? 'sent' : 'sending',
-          createdAt: new Date(msg.timestamp),
-          isEncrypted: true,
-          mediaAttachments: [],
-          mediaUrls: [],
-        }));
+        localMessages.forEach(msg => {
+          messageMap.set(msg.id, {
+            id: msg.id,
+            senderId: msg.from,
+            recipientId: msg.to,
+            encryptedContent: msg.content.startsWith('encrypted:') ? msg.content : `encrypted:${msg.content}`,
+            decryptedContent: msg.content.startsWith('encrypted:') ? msg.content.substring(10) : msg.content,
+            status: msg.synced ? 'sent' : 'sending',
+            createdAt: new Date(msg.timestamp),
+            isEncrypted: true,
+            mediaAttachments: [],
+            mediaUrls: [],
+          });
+        });
         
         setConversations(prev => ({
           ...prev,
           [contactId]: {
             contactId,
-            messages: transformedLocal,
+            messages: Array.from(messageMap.values()).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
             isLoading: false,
             hasMore: false,
           },
@@ -539,52 +562,68 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const messages = await response.json();
-          console.log(`📝 Loaded ${messages.length} messages for contact ${contactId}`);
+          console.log(`📝 Loaded ${messages.length} messages from server for contact ${contactId}`);
           
-          // Transform API messages to Message type
-          const transformedMessages: Message[] = messages.map((msg: any) => ({
-            id: msg.id,
-            senderId: msg.sender_id,
-            recipientId: msg.recipient_id,
-            encryptedContent: msg.encrypted_content,
-            // Strip 'encrypted:' prefix for display, or use the content as-is if no prefix
-            decryptedContent: msg.encrypted_content.startsWith('encrypted:') 
+          // Transform API messages and merge with local messages
+          messages.forEach((msg: any) => {
+            const decryptedContent = msg.encrypted_content?.startsWith('encrypted:') 
               ? msg.encrypted_content.substring(10) 
-              : msg.encrypted_content,
-            status: msg.is_read === true ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
-            createdAt: new Date(msg.created_at),
-            isEncrypted: msg.encrypted_content?.startsWith('encrypted:') || false,
-            mediaAttachments: msg.media_attachments || [],
-            mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
-          }));
+              : msg.encrypted_content;
+              
+            messageMap.set(msg.id, {
+              id: msg.id,
+              senderId: msg.sender_id,
+              recipientId: msg.recipient_id,
+              encryptedContent: msg.encrypted_content,
+              decryptedContent: decryptedContent,
+              status: msg.is_read === true ? 'read' : msg.sender_id === user.id ? 'sent' : 'delivered',
+              createdAt: new Date(msg.created_at),
+              isEncrypted: msg.encrypted_content?.startsWith('encrypted:') || false,
+              mediaAttachments: msg.media_attachments || [],
+              mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
+            });
+          });
+          
+          // Create merged and sorted message list
+          const mergedMessages = Array.from(messageMap.values())
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+          
+          console.log(`📊 Total merged messages: ${mergedMessages.length}`);
           
           setConversations(prev => ({
             ...prev,
             [contactId]: {
               contactId,
-              messages: transformedMessages,
+              messages: mergedMessages,
               isLoading: false,
               hasMore: false,
             },
           }));
           
-          // 🆕 Sync server messages to local storage
-          transformedMessages.forEach(async (msg) => {
+          // 🆕 Sync server messages to local storage (avoid duplicates)
+          for (const msg of messages) {
             try {
+              const decryptedContent = msg.encrypted_content?.startsWith('encrypted:') 
+                ? msg.encrypted_content.substring(10) 
+                : msg.encrypted_content;
+                
               await localStore.saveMessage({
                 id: msg.id,
                 conversationId: contactId,
-                from: msg.senderId,
-                to: msg.recipientId,
-                timestamp: msg.createdAt.toISOString(),
-                content: msg.decryptedContent,
+                from: msg.sender_id,
+                to: msg.recipient_id,
+                timestamp: new Date(msg.created_at).toISOString(),
+                content: decryptedContent,
                 signature: undefined,
                 synced: true,
               });
             } catch (error) {
-              console.error('Failed to save message to local storage:', error);
+              // Message might already exist, ignore duplicates
+              if (!error.message?.includes('already exists')) {
+                console.error('Failed to save message to local storage:', error);
+              }
             }
-          });
+          }
         }
       } catch (error) {
         console.error('Failed to load conversation:', error);
