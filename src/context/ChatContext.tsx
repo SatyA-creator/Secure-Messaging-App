@@ -731,6 +731,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           cryptoVersion: 'v1',
           encryptionAlgorithm: 'ECDH-AES256-GCM',
           kdfAlgorithm: 'HKDF-SHA256',
+        },
+        {
+          hasMedia: mediaAttachments.length > 0,
+          mediaAttachments: mediaAttachments
         }
       );
       

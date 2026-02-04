@@ -42,6 +42,10 @@ export class RelayClient {
       encryptionAlgorithm?: string;
       kdfAlgorithm?: string;
       signatures?: any[];
+    },
+    mediaInfo?: {
+      hasMedia: boolean;
+      mediaAttachments?: any[];
     }
   ): Promise<{ success: boolean; message_id: string; status: string; expires_at: string }> {
     const token = localStorage.getItem('authToken');
@@ -49,7 +53,8 @@ export class RelayClient {
     console.log('🔄 Relay API call:', {
       url: `${this.baseUrl}/send`,
       recipientId,
-      hasToken: !!token
+      hasToken: !!token,
+      hasMedia: mediaInfo?.hasMedia || false
     });
     
     const response = await fetch(`${this.baseUrl}/send`, {
@@ -65,7 +70,9 @@ export class RelayClient {
         crypto_version: cryptoMetadata?.cryptoVersion || 'v1',
         encryption_algorithm: cryptoMetadata?.encryptionAlgorithm || 'ECDH-AES256-GCM',
         kdf_algorithm: cryptoMetadata?.kdfAlgorithm || 'HKDF-SHA256',
-        signatures: cryptoMetadata?.signatures
+        signatures: cryptoMetadata?.signatures,
+        has_media: mediaInfo?.hasMedia || false,
+        media_refs: mediaInfo?.mediaAttachments || []
       })
     });
 
@@ -181,7 +188,11 @@ export class RelayClient {
         cryptoVersion: relayMsg.crypto_version,
         encryptionAlgorithm: relayMsg.encryption_algorithm,
         kdfAlgorithm: relayMsg.kdf_algorithm,
-        signatures: relayMsg.signatures
+        signatures: relayMsg.signatures,
+        // Media attachments
+        hasMedia: relayMsg.has_media || false,
+        mediaAttachments: relayMsg.media_refs || [],
+        mediaUrls: relayMsg.media_refs?.map((m: any) => m.file_url) || []
       };
 
       await localStore.saveMessage(localMessage);
