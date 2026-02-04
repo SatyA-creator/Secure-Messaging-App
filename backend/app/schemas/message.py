@@ -33,9 +33,9 @@ class MessageResponse(BaseModel):
     recipient_id: UUID
     encrypted_content: str
     encrypted_session_key: str
-    crypto_version: str
-    encryption_algorithm: str
-    kdf_algorithm: str
+    crypto_version: str = "v1"  # Default for legacy messages
+    encryption_algorithm: str = "ECDH-AES256-GCM"  # Default for legacy messages
+    kdf_algorithm: str = "HKDF-SHA256"  # Default for legacy messages
     signatures: Optional[List[Dict[str, Any]]] = None
     is_read: bool
     created_at: datetime

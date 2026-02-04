@@ -198,9 +198,6 @@ export class RelayClient {
       // Don't ACK if we couldn't save - message will be redelivered
     }
   }
-      // Don't ACK if we couldn't save - message will be redelivered
-    }
-  }
 
   /**
    * Get relay service statistics
