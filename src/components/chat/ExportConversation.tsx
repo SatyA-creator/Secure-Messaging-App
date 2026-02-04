@@ -5,8 +5,7 @@ import { localStore } from '@/lib/localStore';
 import { 
   conversationToMarkdown, 
   downloadMarkdown, 
-  exportConversationByDate,
-  markdownToMessages
+  exportConversationByDate
 } from '@/lib/markdownSerializer';
 import {
   Dialog,
@@ -74,36 +73,72 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
       setImportStatus(null);
       const text = await file.text();
       
-      // Parse markdown to messages
-      const parsedMessages = markdownToMessages(text);
-      console.log(`📥 Parsed ${parsedMessages.length} messages from markdown`);
+      console.log('📥 Starting markdown import...');
+      
+      // Split by message boundaries (--- blocks)
+      const messageSections = text.split(/\n---\n\n---\n/);
+      console.log(`📦 Found ${messageSections.length} message sections`);
       
       let imported = 0;
       let skipped = 0;
       
-      // Import each message
-      for (const msg of parsedMessages) {
+      for (const section of messageSections) {
+        // Skip if it's just the header
+        if (section.includes('# Conversation Export')) {
+          continue;
+        }
+        
+        // Add back the frontmatter delimiters if missing
+        const messageMarkdown = section.startsWith('---') 
+          ? section 
+          : `---\n${section}`;
+        
         try {
+          // Use the existing markdownToMessage parser
+          const { markdownToMessage } = await import('@/lib/markdownSerializer');
+          const parsedMsg = markdownToMessage(messageMarkdown);
+          
+          if (!parsedMsg.id || !parsedMsg.from || !parsedMsg.to) {
+            console.warn('⚠️ Skipping invalid message:', parsedMsg);
+            skipped++;
+            continue;
+          }
+          
+          // Clean content - remove "encrypted:" prefix if present
+          let cleanContent = parsedMsg.content || '';
+          if (cleanContent.startsWith('encrypted:')) {
+            cleanContent = cleanContent.substring(10);
+          }
+          
           await localStore.saveMessage({
-            id: msg.id,
+            id: parsedMsg.id,
             conversationId: contactId,
-            from: msg.from || contactId, // Default to contact if not specified
-            to: msg.to || '',
-            timestamp: msg.timestamp,
-            content: msg.content,
-            signature: undefined,
-            synced: true
+            from: parsedMsg.from,
+            to: parsedMsg.to,
+            timestamp: parsedMsg.timestamp || new Date().toISOString(),
+            content: cleanContent,
+            signature: parsedMsg.signature,
+            synced: true,
+            cryptoVersion: parsedMsg.cryptoVersion,
+            encryptionAlgorithm: parsedMsg.encryptionAlgorithm,
+            kdfAlgorithm: parsedMsg.kdfAlgorithm,
+            signatures: parsedMsg.signatures
           });
+          
           imported++;
+          console.log(`✅ Imported message ${parsedMsg.id}`);
         } catch (error) {
+          console.warn('⚠️ Failed to import message section:', error);
           skipped++;
         }
       }
       
       setImportStatus({
         type: 'success',
-        message: `Imported ${imported} messages (${skipped} duplicates skipped)`
+        message: `Imported ${imported} messages (${skipped} skipped/duplicates)`
       });
+      
+      console.log(`✅ Import complete: ${imported} imported, ${skipped} skipped`);
       
       // Reload after 2 seconds
       setTimeout(() => {
@@ -111,6 +146,7 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
       }, 2000);
       
     } catch (error) {
+      console.error('❌ Import failed:', error);
       setImportStatus({
         type: 'error',
         message: error instanceof Error ? error.message : 'Import failed'
@@ -126,12 +162,12 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
     <>
       <Button
         variant="ghost"
-        size="sm"
+        size="icon"
         onClick={() => setShowDialog(true)}
-        className="gap-2"
+        className="text-muted-foreground hover:text-foreground w-8 h-8 md:w-10 md:h-10"
+        title="Backup conversation"
       >
-        <FileText className="h-4 w-4" />
-        <span className="hidden sm:inline">Backup</span>
+        <FileText className="w-4 h-4 md:w-5 md:h-5" />
       </Button>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
