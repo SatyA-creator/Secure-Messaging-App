@@ -652,6 +652,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: content,
         signature: undefined,
         synced: false, // Not synced to server yet
+        hasMedia: (files && files.length > 0) || false,
+        mediaAttachments: [],
+        mediaUrls: [],
       });
       console.log('💾 Message saved to local storage');
     } catch (error) {
