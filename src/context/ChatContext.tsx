@@ -199,6 +199,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             console.log(`   ConversationId (sender): ${senderId}`);
             console.log(`   From: ${senderId}, To: ${user.id}`);
             console.log(`   Content length: ${decryptedContent.length}`);
+            console.log(`   Has media: ${data.has_media || false}`);
+            console.log(`   Media attachments:`, data.media_attachments);
             
             await localStore.saveMessage({
               id: messageId,
@@ -209,6 +211,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               content: decryptedContent,
               signature: undefined,
               synced: true,
+              hasMedia: data.has_media || false,
+              mediaAttachments: data.media_attachments || [],
+              mediaUrls: data.media_attachments?.map((m: any) => m.file_url) || [],
             });
             console.log(`✅ Successfully saved received message ${messageId} to IndexedDB`);
           } catch (error) {
@@ -557,8 +562,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         status: msg.synced ? 'sent' : 'sending',
         createdAt: new Date(msg.timestamp),
         isEncrypted: true,
-        mediaAttachments: [],
-        mediaUrls: [],
+        hasMedia: msg.hasMedia || false,
+        mediaAttachments: msg.mediaAttachments || [],
+        mediaUrls: msg.mediaUrls || [],
       })).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       
       setConversations(prev => ({
@@ -670,11 +676,49 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       // Upload files first if any
       let mediaIds: string[] = [];
+      let mediaAttachments: any[] = [];
+      let mediaUrls: string[] = [];
+      
       if (files && files.length > 0) {
         console.log(`📎 Uploading ${files.length} file(s)...`);
         const uploadResults = await MediaService.uploadMultiple(files, messageId);
         mediaIds = uploadResults.map(r => r.id);
+        mediaAttachments = uploadResults;
+        mediaUrls = uploadResults.map(r => r.file_url);
         console.log(`✅ Uploaded ${mediaIds.length} file(s)`);
+        console.log(`   Media URLs:`, mediaUrls);
+        
+        // Update local storage with media information
+        await localStore.saveMessage({
+          id: messageId,
+          conversationId: recipientId,
+          from: user.id,
+          to: recipientId,
+          timestamp: tempTimestamp.toISOString(),
+          content: content,
+          signature: undefined,
+          synced: false,
+          hasMedia: true,
+          mediaAttachments: mediaAttachments,
+          mediaUrls: mediaUrls,
+        });
+        console.log('💾 Updated message in local storage with media info');
+        
+        // Update UI with media information
+        setConversations(prev => ({
+          ...prev,
+          [recipientId]: {
+            ...prev[recipientId],
+            messages: prev[recipientId].messages.map(m =>
+              m.id === messageId ? { 
+                ...m, 
+                hasMedia: true,
+                mediaAttachments: mediaAttachments,
+                mediaUrls: mediaUrls 
+              } : m
+            ),
+          },
+        }));
       }
 
       // ✅ SEND MESSAGE VIA RELAY SERVICE (Phase 3)
