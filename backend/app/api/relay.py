@@ -40,7 +40,13 @@ async def send_relay_message(
     db: Session = Depends(get_db)
 ):
     """
-    Send message via relay service (no database storage).
+    Send message via relay service (NO database storage - privacy-first).
+    
+    Messages are only stored in:
+    - Relay service (temporary, with TTL) for delivery
+    - Client-side IndexedDB (permanent, encrypted) for history
+    
+    Server never stores message content permanently.
     
     Behavior:
     - If recipient is online: instant WebSocket delivery
@@ -58,7 +64,7 @@ async def send_relay_message(
             detail="Recipient not found"
         )
     
-    # Queue message in relay service
+    # Queue message in relay service (temporary storage only)
     relay_msg = relay_service.queue_message(
         sender_id=sender_id,
         recipient_id=recipient_id,

@@ -149,10 +149,23 @@ export class RelayClient {
     currentUserId: string
   ): Promise<void> {
     try {
-      // Determine conversation ID
+      console.log(`📦 Processing relay message ${relayMsg.id}:`, {
+        sender: relayMsg.sender_id,
+        recipient: relayMsg.recipient_id,
+        currentUser: currentUserId
+      });
+      
+      // Determine conversation ID (the other person in the conversation)
       const conversationId = relayMsg.sender_id === currentUserId
         ? relayMsg.recipient_id
         : relayMsg.sender_id;
+
+      console.log(`💾 Saving to conversationId: ${conversationId}`);
+      
+      // Strip 'encrypted:' prefix from content for storage
+      const contentToSave = relayMsg.encrypted_content.startsWith('encrypted:')
+        ? relayMsg.encrypted_content.substring(10)
+        : relayMsg.encrypted_content;
 
       // Save to IndexedDB
       const localMessage: Omit<LocalMessage, 'createdAt'> = {
@@ -161,7 +174,7 @@ export class RelayClient {
         from: relayMsg.sender_id,
         to: relayMsg.recipient_id,
         timestamp: relayMsg.created_at,
-        content: relayMsg.encrypted_content, // Will be decrypted by UI layer
+        content: contentToSave, // Decrypted/clean content
         signature: undefined, // Legacy field
         synced: true, // Received from relay
         // Crypto metadata
@@ -172,12 +185,19 @@ export class RelayClient {
       };
 
       await localStore.saveMessage(localMessage);
-      console.log(`💾 Saved relay message ${relayMsg.id} to IndexedDB`);
+      console.log(`✅ Successfully saved relay message ${relayMsg.id} to IndexedDB (conversation: ${conversationId})`);
 
       // Acknowledge to server (server will delete it)
-      await this.acknowledgeMessage(relayMsg.id);
+      const ackSuccess = await this.acknowledgeMessage(relayMsg.id);
+      if (ackSuccess) {
+        console.log(`✅ Acknowledged message ${relayMsg.id} - server will delete it`);
+      }
     } catch (error) {
       console.error(`❌ Failed to process relay message ${relayMsg.id}:`, error);
+      console.error('   Error details:', error instanceof Error ? error.message : String(error));
+      // Don't ACK if we couldn't save - message will be redelivered
+    }
+  }
       // Don't ACK if we couldn't save - message will be redelivered
     }
   }
