@@ -157,9 +157,8 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
       // Only reload if messages were actually imported
       if (imported > 0) {
         setTimeout(() => {
-          // Use a softer reload that doesn't clear auth
-          window.dispatchEvent(new Event('storage'));
-          setShowDialog(false);
+          // Refresh the page to reload messages from IndexedDB
+          window.location.reload();
         }, 2000);
       }
       

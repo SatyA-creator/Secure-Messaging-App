@@ -42,81 +42,85 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
         {/* Media attachments */}
         {hasMedia && (
           <div className="space-y-2 mb-2">
-            {/* From mediaAttachments array */}
-            {message.mediaAttachments?.map((media, index) => {
-              // Fix: Remove /api/v1 prefix if present to avoid duplication
-              const cleanUrl = media.file_url.startsWith('/api/v1') 
-                ? media.file_url.replace('/api/v1', '')
-                : media.file_url;
-              const fullUrl = cleanUrl.startsWith('http') 
-                ? cleanUrl 
-                : `${ENV.API_URL}${cleanUrl}`;
-              
-              if (media.category === 'image') {
-                return (
-                  <img
-                    key={media.id}
-                    src={fullUrl}
-                    alt={media.file_name}
-                    className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => window.open(fullUrl, '_blank')}
-                  />
-                );
-              } else {
-                return (
-                  <a
-                    key={media.id}
-                    href={fullUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span className="text-sm truncate flex-1">{media.file_name}</span>
-                    <Download className="w-4 h-4" />
-                  </a>
-                );
-              }
-            })}
-            
-            {/* From mediaUrls array (fallback) */}
-            {message.mediaUrls?.map((mediaUrl, index) => {
-              // Fix: Remove /api/v1 prefix if present to avoid duplication
-              const cleanUrl = mediaUrl.startsWith('/api/v1')
-                ? mediaUrl.replace('/api/v1', '')
-                : mediaUrl;
-              const fullUrl = cleanUrl.startsWith('http') 
-                ? cleanUrl 
-                : `${ENV.API_URL}${cleanUrl}`;
-              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
-              
-              if (isImage) {
-                return (
-                  <img
-                    key={index}
-                    src={fullUrl}
-                    alt="Attachment"
-                    className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => window.open(fullUrl, '_blank')}
-                  />
-                );
-              } else {
-                const fileName = mediaUrl.split('/').pop() || 'file';
-                return (
-                  <a
-                    key={index}
-                    href={fullUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span className="text-sm truncate flex-1">{fileName}</span>
-                    <Download className="w-4 h-4" />
-                  </a>
-                );
-              }
-            })}
+            {/* Prefer mediaAttachments if available, otherwise fall back to mediaUrls */}
+            {message.mediaAttachments && message.mediaAttachments.length > 0 ? (
+              message.mediaAttachments.map((media, index) => {
+                // Fix: Remove /api/v1 prefix if present to avoid duplication
+                const cleanUrl = media.file_url.startsWith('/api/v1') 
+                  ? media.file_url.replace('/api/v1', '')
+                  : media.file_url;
+                const fullUrl = cleanUrl.startsWith('http') 
+                  ? cleanUrl 
+                  : `${ENV.API_URL}${cleanUrl}`;
+                
+                if (media.category === 'image') {
+                  return (
+                    <img
+                      key={media.id}
+                      src={fullUrl}
+                      alt={media.file_name}
+                      className="rounded-lg max-w-[300px] max-h-[400px] w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity object-cover"
+                      onClick={() => window.open(fullUrl, '_blank')}
+                      loading="lazy"
+                    />
+                  );
+                } else {
+                  return (
+                    <a
+                      key={media.id}
+                      href={fullUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span className="text-sm truncate flex-1">{media.file_name}</span>
+                      <Download className="w-4 h-4" />
+                    </a>
+                  );
+                }
+              })
+            ) : (
+              /* Fallback to mediaUrls if mediaAttachments is not available */
+              message.mediaUrls?.map((mediaUrl, index) => {
+                // Fix: Remove /api/v1 prefix if present to avoid duplication
+                const cleanUrl = mediaUrl.startsWith('/api/v1')
+                  ? mediaUrl.replace('/api/v1', '')
+                  : mediaUrl;
+                const fullUrl = cleanUrl.startsWith('http') 
+                  ? cleanUrl 
+                  : `${ENV.API_URL}${cleanUrl}`;
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
+                
+                if (isImage) {
+                  return (
+                    <img
+                      key={index}
+                      src={fullUrl}
+                      alt="Attachment"
+                      className="rounded-lg max-w-[300px] max-h-[400px] w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity object-cover"
+                      onClick={() => window.open(fullUrl, '_blank')}
+                      loading="lazy"
+                    />
+                  );
+                } else {
+                  const fileName = mediaUrl.split('/').pop() || 'file';
+                  return (
+                    <a
+                      key={index}
+                      href={fullUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span className="text-sm truncate flex-1">{fileName}</span>
+                      <Download className="w-4 h-4" />
+                    </a>
+                  );
+                }
+              })
+            )}
           </div>
         )}
         
