@@ -74,32 +74,43 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
       const text = await file.text();
       
       console.log('📥 Starting markdown import...');
+      console.log('📄 File content length:', text.length);
       
-      // Split by message boundaries (--- blocks)
-      const messageSections = text.split(/\n---\n\n---\n/);
+      // Split by message boundaries (matching the export format: \n\n---\n\n)
+      const messageSections = text.split(/\n\n---\n\n/);
       console.log(`📦 Found ${messageSections.length} message sections`);
       
       let imported = 0;
       let skipped = 0;
       
       for (const section of messageSections) {
-        // Skip if it's just the header
-        if (section.includes('# Conversation Export')) {
+        const trimmedSection = section.trim();
+        
+        // Skip empty sections or header
+        if (!trimmedSection || trimmedSection.includes('# Conversation Export')) {
+          console.log('⏭️ Skipping header or empty section');
           continue;
         }
         
-        // Add back the frontmatter delimiters if missing
-        const messageMarkdown = section.startsWith('---') 
-          ? section 
-          : `---\n${section}`;
+        // Ensure the section has proper frontmatter delimiters
+        const messageMarkdown = trimmedSection.startsWith('---') 
+          ? trimmedSection 
+          : `---\n${trimmedSection}`;
         
         try {
           // Use the existing markdownToMessage parser
           const { markdownToMessage } = await import('@/lib/markdownSerializer');
           const parsedMsg = markdownToMessage(messageMarkdown);
           
+          console.log('📨 Parsed message:', {
+            id: parsedMsg.id,
+            from: parsedMsg.from,
+            to: parsedMsg.to,
+            hasContent: !!parsedMsg.content
+          });
+          
           if (!parsedMsg.id || !parsedMsg.from || !parsedMsg.to) {
-            console.warn('⚠️ Skipping invalid message:', parsedMsg);
+            console.warn('⚠️ Skipping invalid message - missing required fields:', parsedMsg);
             skipped++;
             continue;
           }
@@ -126,24 +137,31 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
           });
           
           imported++;
-          console.log(`✅ Imported message ${parsedMsg.id}`);
+          console.log(`✅ Imported message ${parsedMsg.id} (${imported} total)`);
         } catch (error) {
           console.warn('⚠️ Failed to import message section:', error);
+          console.warn('   Section preview:', messageMarkdown.substring(0, 200));
           skipped++;
         }
       }
       
       setImportStatus({
-        type: 'success',
-        message: `Imported ${imported} messages (${skipped} skipped/duplicates)`
+        type: imported > 0 ? 'success' : 'error',
+        message: imported > 0 
+          ? `Imported ${imported} messages (${skipped} skipped/duplicates)` 
+          : `No messages imported. ${skipped} skipped. Please check the file format.`
       });
       
       console.log(`✅ Import complete: ${imported} imported, ${skipped} skipped`);
       
-      // Reload after 2 seconds
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Only reload if messages were actually imported
+      if (imported > 0) {
+        setTimeout(() => {
+          // Use a softer reload that doesn't clear auth
+          window.dispatchEvent(new Event('storage'));
+          setShowDialog(false);
+        }, 2000);
+      }
       
     } catch (error) {
       console.error('❌ Import failed:', error);
