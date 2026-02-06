@@ -1,4 +1,3 @@
-import matter from 'gray-matter';
 import { LocalMessage } from './localStore';
 
 /* ============================================================
@@ -83,30 +82,66 @@ export function messageToMarkdown(message: LocalMessage): string {
 
 export function markdownToMessage(markdown: string): Partial<LocalMessage> {
   try {
-    const parsed = matter(markdown);
-
+    // Manual parsing to avoid gray-matter Buffer dependency
+    const lines = markdown.trim().split('\n');
+    
+    // Find frontmatter boundaries
+    let frontmatterStart = -1;
+    let frontmatterEnd = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === '---') {
+        if (frontmatterStart === -1) {
+          frontmatterStart = i;
+        } else {
+          frontmatterEnd = i;
+          break;
+        }
+      }
+    }
+    
+    if (frontmatterStart === -1 || frontmatterEnd === -1) {
+      throw new Error('Invalid markdown format: missing frontmatter delimiters');
+    }
+    
+    // Parse frontmatter
+    const frontmatterLines = lines.slice(frontmatterStart + 1, frontmatterEnd);
+    const data: Record<string, any> = {};
+    
+    for (const line of frontmatterLines) {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) continue;
+      
+      const key = line.substring(0, colonIndex).trim();
+      const value = line.substring(colonIndex + 1).trim();
+      data[key] = value;
+    }
+    
+    // Extract content (everything after the second ---)
+    const content = lines.slice(frontmatterEnd + 1).join('\n').trim();
+    
     const message: Partial<LocalMessage> = {
-      id: parsed.data.id,
-      from: parsed.data.from,
-      to: parsed.data.to,
-      timestamp: parsed.data.timestamp,
+      id: data.id,
+      from: data.from,
+      to: data.to,
+      timestamp: data.timestamp,
       signature:
-        parsed.data.sig && parsed.data.sig !== 'UNSIGNED'
-          ? parsed.data.sig
+        data.sig && data.sig !== 'UNSIGNED'
+          ? data.sig
           : undefined,
-      content: parsed.content.trim(),
+      content: content,
       // Parse cryptographic metadata (with backward compatibility)
-      cryptoVersion: parsed.data.cryptoVersion,
-      encryptionAlgorithm: parsed.data.encryptionAlgorithm,
-      kdfAlgorithm: parsed.data.kdfAlgorithm,
+      cryptoVersion: data.cryptoVersion,
+      encryptionAlgorithm: data.encryptionAlgorithm,
+      kdfAlgorithm: data.kdfAlgorithm,
     };
     
     // Parse multi-signature array if present
-    if (parsed.data.signatures) {
+    if (data.signatures) {
       try {
-        message.signatures = typeof parsed.data.signatures === 'string' 
-          ? JSON.parse(parsed.data.signatures) 
-          : parsed.data.signatures;
+        message.signatures = typeof data.signatures === 'string' 
+          ? JSON.parse(data.signatures) 
+          : data.signatures;
       } catch (e) {
         console.warn('Failed to parse signatures, skipping:', e);
       }
