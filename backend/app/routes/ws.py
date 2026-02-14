@@ -165,9 +165,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                 encrypted_content = data.get("encrypted_content")
                 encrypted_session_keys = data.get("encrypted_session_keys")  # dict: user_id -> key
                 
+                # ⚠️ SECURITY: Only log message metadata, not content
                 print(f"💬 Processing group message for group {group_id}")
                 print(f"   Sender: {user_id}")
-                print(f"   Content: {encrypted_content}")
                 
                 # ✅ FIX: Verify sender is member OR admin of the group
                 group = db.query(Group).filter(Group.id == UUID(group_id)).first()

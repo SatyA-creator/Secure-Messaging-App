@@ -35,11 +35,6 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
       const messages = await localStore.getConversation(contactId);
       console.log('📊 Got messages for export:', messages.length);
       
-      // Debug: Log first message structure
-      if (messages.length > 0) {
-        console.log('🔍 First message structure:', JSON.stringify(messages[0], null, 2));
-      }
-      
       const markdown = conversationToMarkdown(messages);
       console.log('📝 Generated markdown, length:', markdown.length);
       downloadMarkdown(markdown, `conversation-${contactName}-all.md`);
@@ -63,7 +58,7 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
     } finally {
       setIsExporting(false);
     }
-  };
+  }; 
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -102,12 +97,8 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
           const { markdownToMessage } = await import('@/lib/markdownSerializer');
           const parsedMsg = markdownToMessage(messageMarkdown);
           
-          console.log('📨 Parsed message:', {
-            id: parsedMsg.id,
-            from: parsedMsg.from,
-            to: parsedMsg.to,
-            hasContent: !!parsedMsg.content
-          });
+          // ⚠️ SECURITY: Only log metadata, not content
+          console.log(`📨 Parsed message ${parsedMsg.id}`);
           
           if (!parsedMsg.id || !parsedMsg.from || !parsedMsg.to) {
             console.warn('⚠️ Skipping invalid message - missing required fields:', parsedMsg);

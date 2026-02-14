@@ -21,25 +21,25 @@ export default function Auth() {
             </div>
             <div>
               <h1 className="text-2xl font-display font-bold">QuantChat</h1>
-              <p className="text-sm text-muted-foreground">End-to-End Encrypted</p>
+              <p className="text-sm text-muted-foreground">Secure Messaging</p>
             </div>
           </div>
 
           <h2 className="text-4xl font-display font-bold mb-4 leading-tight">
             Private conversations,
             <br />
-            <span className="gradient-text">truly private.</span>
+            <span className="gradient-text">built for privacy.</span>
           </h2>
           
           <p className="text-muted-foreground mb-10">
-            Your messages are encrypted before they leave your device. Not even we can read them.
+            Modern messaging platform with local-first storage and privacy-focused architecture.
           </p>
 
           <div className="space-y-4">
             <FeatureItem
               icon={<Lock className="w-5 h-5" />}
-              title="AES-256-GCM Encryption"
-              description="Military-grade encryption for every message"
+              title="Privacy-First Design"
+              description="Messages stored locally on your device"
             />
             <FeatureItem
               icon={<Zap className="w-5 h-5" />}
@@ -48,8 +48,8 @@ export default function Auth() {
             />
             <FeatureItem
               icon={<Users className="w-5 h-5" />}
-              title="Zero-Knowledge"
-              description="Server never sees your plaintext messages"
+              title="Modern Architecture"
+              description="Relay-based messaging with offline support"
             />
           </div>
         </div>

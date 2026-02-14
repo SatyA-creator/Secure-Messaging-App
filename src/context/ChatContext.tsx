@@ -195,12 +195,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             : encryptedContent;
           
           try {
-            console.log(`💾 Saving received message ${messageId} to local storage...`);
-            console.log(`   ConversationId (sender): ${senderId}`);
-            console.log(`   From: ${senderId}, To: ${user.id}`);
-            console.log(`   Content length: ${decryptedContent.length}`);
-            console.log(`   Has media: ${data.has_media || false}`);
-            console.log(`   Media attachments:`, data.media_attachments);
+            // ⚠️ SECURITY: Logging message IDs only, never content
+            console.log(`💾 Saving received message ${messageId} to local storage`);
             
             await localStore.saveMessage({
               id: messageId,
@@ -233,11 +229,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Check if message already exists
             const messageExists = existingConversation.messages.some(m => m.id === messageId);
             if (messageExists) {
-              console.log(`⚠️ Message ${messageId} already exists in UI, skipping duplicate`);
               return prev;
             }
-            
-            console.log(`📝 Adding message ${messageId} to UI for conversation with ${senderId}`);
             
             return {
               ...prev,
@@ -523,35 +516,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSelectedGroupId(null);
     
     // 🆕 PRIVACY-FIRST: Load messages ONLY from local IndexedDB (no server database)
-    // All messages are stored locally in encrypted form
-    console.log(`📂 Loading conversation with ${contactId} from local storage only`);
-    console.log(`   Current user: ${user?.id}`);
+    console.log(`📂 Loading conversation from local storage`);
     
     try {
-      // Debug: Check total messages in IndexedDB
-      const stats = await localStore.getStats();
-      console.log(`📊 IndexedDB stats:`, stats);
-      
       const localMessages = await localStore.getConversation(contactId);
-      console.log(`💾 Loaded ${localMessages.length} messages from local storage for conversation ${contactId}`);
-      
-      // Debug: Show first few messages
-      if (localMessages.length > 0) {
-        console.log(`   First message:`, {
-          id: localMessages[0].id,
-          from: localMessages[0].from,
-          to: localMessages[0].to,
-          content_length: localMessages[0].content.length,
-          timestamp: localMessages[0].timestamp
-        });
-        console.log(`   Last message:`, {
-          id: localMessages[localMessages.length - 1].id,
-          from: localMessages[localMessages.length - 1].from,
-          to: localMessages[localMessages.length - 1].to,
-          content_length: localMessages[localMessages.length - 1].content.length,
-          timestamp: localMessages[localMessages.length - 1].timestamp
-        });
-      }
+      console.log(`💾 Loaded ${localMessages.length} messages`);
       
       const transformedMessages: Message[] = localMessages.map(msg => ({
         id: msg.id,
@@ -619,11 +588,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    console.log('📤 Sending message:');
-    console.log('   From (sender):', user.id);
-    console.log('   To (recipient):', recipientId);
-    console.log('   Content:', content);
-    console.log('   Files:', files?.length || 0);
+    // ⚠️ SECURITY: Never log message content
+    console.log('📤 Sending message to:', recipientId);
 
     const messageId = crypto.randomUUID();
     const tempTimestamp = new Date();

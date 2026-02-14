@@ -79,25 +79,39 @@ async def send_relay_message(
         ttl_days=message.ttl_days
     )
     
-    # Attempt instant delivery if recipient is online
-    if relay_service.is_user_online(recipient_id):
+    # ✅ FIX: Check WebSocket manager as source of truth for online status
+    print(f"🔍 Checking if recipient {recipient_id} is online...")
+    print(f"   Online users in relay service: {len(relay_service._online_users)}")
+    print(f"   Active WebSocket connections: {len(manager.active_connections)}")
+    print(f"   WebSocket connection IDs: {list(manager.active_connections.keys())}")
+    
+    # Use WebSocket manager as source of truth
+    is_online = recipient_id in manager.active_connections
+    print(f"   Recipient {recipient_id} online status: {is_online}")
+    
+    # Initialize delivery status
+    delivered = False
+    
+    # Attempt instant delivery if recipient has active WebSocket connection
+    if is_online:
         message_payload = {
             "type": "relay_message",
             "data": relay_msg.to_dict()
         }
+        print(f"📤 Attempting instant delivery to {recipient_id}...")
         delivered = await manager.send_personal_message(recipient_id, message_payload)
         
         if delivered:
-            print(f"📨 Instant delivery to online user {recipient_id}")
+            print(f"✅ Successfully delivered to online user {recipient_id}")
         else:
-            print(f"📬 Queued for offline user {recipient_id} (TTL: {relay_msg.expires_at})")
+            print(f"⚠️ Failed to deliver to {recipient_id}, message queued (TTL: {relay_msg.expires_at})")
     else:
-        print(f"📬 Queued for offline user {recipient_id} (TTL: {relay_msg.expires_at})")
+        print(f"📬 User {recipient_id} is offline, message queued (TTL: {relay_msg.expires_at})")
     
     return {
         "success": True,
         "message_id": relay_msg.id,
-        "status": "delivered" if relay_service.is_user_online(recipient_id) else "queued",
+        "status": "delivered" if (is_online and delivered) else "queued",
         "expires_at": relay_msg.expires_at.isoformat()
     }
 

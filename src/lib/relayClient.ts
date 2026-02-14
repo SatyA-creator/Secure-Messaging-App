@@ -85,7 +85,8 @@ export class RelayClient {
     }
 
     const result = await response.json();
-    console.log('✅ Relay API success:', result);
+    // ⚠️ SECURITY: Don't log full result which may contain message IDs
+    console.log('✅ Relay API success');
     return result;
   }
 

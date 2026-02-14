@@ -194,14 +194,30 @@ class RelayService:
     def mark_user_online(self, user_id: str):
         """Mark user as online for instant delivery"""
         self._online_users.add(user_id)
+        print(f"✅ Relay service: User {user_id} marked online")
     
     def mark_user_offline(self, user_id: str):
         """Mark user as offline"""
         self._online_users.discard(user_id)
+        print(f"❌ Relay service: User {user_id} marked offline")
     
-    def is_user_online(self, user_id: str) -> bool:
-        """Check if user is currently online"""
-        return user_id in self._online_users
+    def is_user_online(self, user_id: str, websocket_manager=None) -> bool:
+        """
+        Check if user is currently online.
+        
+        If websocket_manager is provided, use it as source of truth.
+        Otherwise fall back to internal tracking.
+        
+        This prevents race conditions between relay service and websocket manager.
+        """
+        if websocket_manager:
+            is_online = user_id in websocket_manager.active_connections
+            print(f"🔍 Checking online status for {user_id}: {is_online} (via WebSocket manager)")
+            return is_online
+        else:
+            is_online = user_id in self._online_users
+            print(f"🔍 Checking online status for {user_id}: {is_online} (via internal tracking)")
+            return is_online
     
     def get_stats(self) -> Dict[str, int]:
         """Get relay service statistics"""

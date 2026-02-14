@@ -88,16 +88,17 @@ class WebSocketService {
     const messageType = data.type;
     const payload = data.payload || data.data || data;
     
-    console.log(`📨 Handling message type: ${messageType}`);
+    // ⚠️ SECURITY: Only log message type, never payload content
+    console.log(`📨 Received: ${messageType}`);
     
     // Handle relay messages specially
     if (messageType === 'relay_message') {
-      console.log('📬 Received relay message:', payload);
       this.handleRelayMessage(payload);
       return;
     }
     
     const handlers = this.eventHandlers.get(messageType) || [];
+    
     handlers.forEach(handler => {
       try {
         handler(payload);
@@ -105,6 +106,10 @@ class WebSocketService {
         console.error(`❌ Error in handler for ${messageType}:`, error);
       }
     });
+    
+    if (handlers.length === 0) {
+      console.warn(`⚠️ No handlers registered for message type: ${messageType}`);
+    }
   }
   
   private async handleRelayMessage(relayMsg: any) {
@@ -207,14 +212,28 @@ class WebSocketService {
   }
 
   public send(type: string, payload: unknown) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (!this.ws) {
+      console.error('❌ WebSocket is null, cannot send message');
+      throw new Error('WebSocket not initialized');
+    }
+    
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+      const currentState = states[this.ws.readyState] || 'UNKNOWN';
+      console.error(`❌ WebSocket is not connected (state: ${currentState})`);
+      console.error(`   Message type: ${type}`);
+      throw new Error(`WebSocket not connected (state: ${currentState})`);
+    }
+    
+    try {
       // ✅ CRITICAL FIX: Nest payload properly for backend compatibility
       const message = JSON.stringify({ type, payload });
-      console.log(`📤 Sending WebSocket message: ${type}`, payload);
+      // ⚠️ SECURITY: Only log message type, never payload
+      console.log(`📤 Sending: ${type}`);
       this.ws.send(message);
-    } else {
-      console.error('❌ WebSocket is not connected, cannot send message');
-      throw new Error('WebSocket not connected');
+    } catch (error) {
+      console.error(`❌ Error sending WebSocket message:`, error);
+      throw error;
     }
   }
 
