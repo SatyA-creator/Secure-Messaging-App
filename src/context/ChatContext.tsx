@@ -7,6 +7,7 @@ import { MediaService } from '@/lib/mediaService';
 import { localStore } from '@/lib/localStore';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { relayClient } from '@/lib/relayClient';
+import { cryptoService } from '@/lib/cryptoService';
 
 interface ChatContextType {
   contacts: Contact[];
@@ -74,19 +75,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       const contactsData = await response.json();
-      console.log('Fetched contacts from API:', contactsData);
-      console.log('Number of contacts:', contactsData.length);
-      
-      // Log each contact's details
-      contactsData.forEach((c: any, index: number) => {
-        console.log(`Contact ${index + 1}:`, {
-          id: c.id,
-          contact_id: c.contact_id,
-          contact_user_id: c.contact_user_id,
-          contact_username: c.contact_username,
-          contact_email: c.contact_email,
-        });
-      });
+      console.log(`Fetched ${contactsData.length} contacts from API`);
 
       // Transform API contacts to Contact type
       const apiContacts: Contact[] = contactsData.map((c: any) => ({
@@ -94,16 +83,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         username: c.contact_username || 'Unknown',
         email: c.contact_email || '',
         fullName: c.contact_full_name || c.contact_username || 'Unknown User',
-        publicKey: c.contact_public_key || 'api-key',
+        publicKey: c.contact_public_key || '',
         isOnline: c.is_online || false,
         lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : new Date(),
         unreadCount: 0,
       }));
       
-      console.log('Transformed contacts:');
-      apiContacts.forEach((contact, index) => {
-        console.log(`  Contact ${index + 1}: ID=${contact.id}, username=${contact.username}, email=${contact.email}`);
-      });
       setContacts(apiContacts);
 
       // Initialize empty conversations for each contact
@@ -143,9 +128,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      console.log('🔐 Connecting WebSocket with user:', user.id);
-      console.log('   User email:', user.email);
-      console.log('   Token length:', token.length);
+      console.log('Connecting WebSocket for user:', user.id);
       
       // ✅ Connect using the user ID and JWT token
       wsRef.current.connect(user.id, token)
@@ -153,24 +136,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setIsConnected(true);
           console.log('✅ Connected to WebSocket with authentication');
           
-          // 🆕 Process offline queue on reconnect using relay service
+          // Process offline queue on reconnect using relay service with real encryption
           offlineQueue.processQueue(async (message) => {
             try {
-              // Use relay service for offline message sync
+              // Find recipient's public key from contacts
+              const recipient = contacts.find(c => c.id === message.to);
+              let encryptedContent: string;
+              let sessionKey: string;
+
+              if (recipient?.publicKey && !recipient.publicKey.startsWith('api-') && recipient.publicKey !== 'api-key') {
+                // Encrypt with real ECDH + AES-256-GCM
+                encryptedContent = await cryptoService.encryptMessage(message.content, recipient.publicKey);
+                sessionKey = 'ecdh-pfs';
+              } else {
+                // Fallback: recipient has no real public key yet
+                encryptedContent = message.content;
+                sessionKey = 'pending-key-exchange';
+              }
+
               await relayClient.sendMessage(
                 message.to,
-                `encrypted:${message.content}`,
-                'session-key-placeholder',
+                encryptedContent,
+                sessionKey,
                 {
                   cryptoVersion: 'v1',
                   encryptionAlgorithm: 'ECDH-AES256-GCM',
                   kdfAlgorithm: 'HKDF-SHA256',
                 }
               );
-              return true; // Success
+              return true;
             } catch (error) {
               console.error('Failed to sync message:', error);
-              return false; // Failure
+              return false;
             }
           });
         })
@@ -179,28 +176,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setIsConnected(false);
         });
 
-      // ✅ CRITICAL FIX #2: Set up event listeners for incoming messages
+      // Set up event listeners for incoming messages
       const handleNewMessage = async (data: any) => {
-        console.log('📨 New message received:', data);
-        
+        // SECURITY: Only log message ID and sender, never content
         const senderId = data.sender_id || data.senderId;
         const messageId = data.message_id || data.messageId || crypto.randomUUID();
         const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-        
+        console.log(`Received message ${messageId} from ${senderId}`);
+
         if (senderId) {
-          // ✅ SAVE TO LOCAL STORAGE FIRST
           const encryptedContent = data.encrypted_content || '';
-          const decryptedContent = typeof encryptedContent === 'string' && encryptedContent.startsWith('encrypted:')
-            ? encryptedContent.substring(10)
-            : encryptedContent;
-          
+
+          // Decrypt the message content
+          let decryptedContent: string;
           try {
-            // ⚠️ SECURITY: Logging message IDs only, never content
-            console.log(`💾 Saving received message ${messageId} to local storage`);
-            
+            if (cryptoService.isEncryptedEnvelope(encryptedContent)) {
+              // Real ECDH + AES-256-GCM encrypted message
+              decryptedContent = await cryptoService.decryptMessage(encryptedContent);
+            } else if (typeof encryptedContent === 'string' && encryptedContent.startsWith('encrypted:')) {
+              // Legacy format: strip prefix (backward compat for old messages)
+              decryptedContent = encryptedContent.substring(10);
+            } else {
+              decryptedContent = encryptedContent;
+            }
+          } catch (decryptError) {
+            console.error(`Failed to decrypt message ${messageId}:`, decryptError);
+            decryptedContent = '[Unable to decrypt message]';
+          }
+
+          try {
             await localStore.saveMessage({
               id: messageId,
-              conversationId: senderId, // Conversation is identified by the other person (sender)
+              conversationId: senderId,
               from: senderId,
               to: user.id,
               timestamp: serverTimestamp.toISOString(),
@@ -211,27 +218,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               mediaAttachments: data.media_attachments || [],
               mediaUrls: data.media_attachments?.map((m: any) => m.file_url) || [],
             });
-            console.log(`✅ Successfully saved received message ${messageId} to IndexedDB`);
           } catch (error) {
-            console.error('❌ Failed to save received message to local storage:', error);
-            console.error('   Error details:', error instanceof Error ? error.message : String(error));
+            console.error(`Failed to save received message ${messageId}:`, error);
           }
-          
+
           // Add message to conversation - avoid duplicates
           setConversations(prev => {
-            const existingConversation = prev[senderId] || { 
-              contactId: senderId, 
-              messages: [], 
-              isLoading: false, 
-              hasMore: false 
+            const existingConversation = prev[senderId] || {
+              contactId: senderId,
+              messages: [],
+              isLoading: false,
+              hasMore: false
             };
-            
-            // Check if message already exists
+
             const messageExists = existingConversation.messages.some(m => m.id === messageId);
             if (messageExists) {
               return prev;
             }
-            
+
             return {
               ...prev,
               [senderId]: {
@@ -243,12 +247,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   encryptedContent: encryptedContent,
                   decryptedContent: decryptedContent,
                   status: 'delivered' as MessageStatus,
-                  createdAt: serverTimestamp,  // Use server timestamp for consistency
+                  createdAt: serverTimestamp,
                   isEncrypted: true,
                   hasMedia: data.has_media || false,
                   mediaAttachments: data.media_attachments || [],
                   mediaUrls: data.media_attachments?.map((m: any) => m.file_url) || [],
-                }].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort by timestamp
+                }].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
               },
             };
           });
@@ -268,10 +272,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // ✅ CRITICAL FIX #3: Listen for contact_added events
+      // Listen for contact_added events
       const handleContactAdded = (data: any) => {
-        console.log('👥 New contact added:', data);
-        
+        console.log('New contact added:', data.contact_id || data.user_id);
+
         const contactId = data.contact_id || data.user_id;
         if (contactId) {
           const newContact: Contact = {
@@ -279,7 +283,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             username: data.username || 'Unknown',
             email: data.email || '',
             fullName: data.full_name || data.username || 'Unknown User',
-            publicKey: data.public_key || 'api-key',
+            publicKey: data.public_key || '',
             isOnline: data.is_online || false,
             lastSeen: new Date(),
             unreadCount: 0,
@@ -306,10 +310,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // ✅ Listen for message_sent confirmation
+      // Listen for message_sent confirmation
       const handleMessageSent = async (data: any) => {
-        console.log('✅ Message sent confirmation:', data);
         const messageId = data.message_id;
+        console.log('Message sent confirmation:', messageId);
         const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
         
         if (messageId) {
@@ -329,44 +333,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           
           // Refetch conversation to get media attachments
           if (targetContactId && user?.id) {
-            console.log('🔄 Refetching conversation to get media attachments');
             try {
               const response = await fetch(
                 `${ENV.API_URL}/messages/conversation/${targetContactId}?current_user_id=${user.id}`,
                 {
                   headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
                   },
                 }
               );
-              
+
               if (response.ok) {
                 const messages: any[] = await response.json();
-                console.log(`📥 Refetched ${messages.length} messages with media`);
-                
+
+                // Decrypt each message
+                const decryptedMessages = await Promise.all(messages.map(async (msg: any) => {
+                  const encContent = msg.encrypted_content || '';
+                  let decContent: string;
+                  try {
+                    if (cryptoService.isEncryptedEnvelope(encContent)) {
+                      decContent = await cryptoService.decryptMessage(encContent);
+                    } else if (encContent.startsWith('encrypted:')) {
+                      decContent = encContent.substring(10);
+                    } else {
+                      decContent = encContent;
+                    }
+                  } catch {
+                    decContent = '[Unable to decrypt]';
+                  }
+                  return {
+                    id: msg.id,
+                    senderId: msg.sender_id,
+                    recipientId: msg.recipient_id,
+                    encryptedContent: encContent,
+                    decryptedContent: decContent,
+                    createdAt: new Date(msg.created_at),
+                    isRead: msg.is_read,
+                    isEncrypted: true,
+                    status: 'sent' as MessageStatus,
+                    mediaAttachments: msg.media_attachments || [],
+                    mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
+                  };
+                }));
+
                 setConversations(prev => ({
                   ...prev,
                   [targetContactId]: {
                     ...prev[targetContactId],
-                    messages: messages.map((msg: any) => ({
-                      id: msg.id,
-                      senderId: msg.sender_id,
-                      recipientId: msg.recipient_id,
-                      encryptedContent: msg.encrypted_content,
-                      decryptedContent: msg.encrypted_content?.replace('encrypted:', '') || '',
-                      createdAt: new Date(msg.created_at),
-                      isRead: msg.is_read,
-                      isEncrypted: msg.encrypted_content?.startsWith('encrypted:') || false,
-                      status: 'sent' as MessageStatus,
-                      mediaAttachments: msg.media_attachments || [],
-                      mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
-                    })),
+                    messages: decryptedMessages,
                     isLoading: false,
                   },
                 }));
               }
             } catch (error) {
-              console.error('❌ Failed to refetch conversation:', error);
+              console.error('Failed to refetch conversation:', error);
             }
           }
           
@@ -396,9 +416,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // ✅ Listen for message_delivered confirmation
+      // Listen for message_delivered confirmation
       const handleMessageDelivered = (data: any) => {
-        console.log('✅ Message delivered confirmation:', data);
         
         const messageId = data.message_id;
         if (messageId) {
@@ -460,9 +479,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // ✅ Listen for message read confirmations
+      // Listen for message read confirmations
       const handleMessageRead = (data: any) => {
-        console.log('✅ Message read confirmation:', data);
         const messageId = data.message_id;
         
         if (messageId) {
@@ -514,28 +532,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const selectContact = useCallback(async (contactId: string) => {
     setSelectedContactId(contactId);
     setSelectedGroupId(null);
-    
-    // 🆕 PRIVACY-FIRST: Load messages ONLY from local IndexedDB (no server database)
-    console.log(`📂 Loading conversation from local storage`);
-    
+
+    // Load messages from local IndexedDB
     try {
       const localMessages = await localStore.getConversation(contactId);
-      console.log(`💾 Loaded ${localMessages.length} messages`);
-      
-      const transformedMessages: Message[] = localMessages.map(msg => ({
-        id: msg.id,
-        senderId: msg.from,
-        recipientId: msg.to,
-        encryptedContent: msg.content.startsWith('encrypted:') ? msg.content : `encrypted:${msg.content}`,
-        decryptedContent: msg.content.startsWith('encrypted:') ? msg.content.substring(10) : msg.content,
-        status: msg.synced ? 'sent' : 'sending',
-        createdAt: new Date(msg.timestamp),
-        isEncrypted: true,
-        hasMedia: msg.hasMedia || false,
-        mediaAttachments: msg.mediaAttachments || [],
-        mediaUrls: msg.mediaUrls || [],
-      })).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      
+      console.log(`Loaded ${localMessages.length} messages for conversation`);
+
+      // Decrypt any messages that are still stored as encrypted envelopes
+      const transformedMessages: Message[] = await Promise.all(localMessages.map(async (msg) => {
+        let displayContent = msg.content;
+
+        // If content is still an encrypted envelope, try to decrypt it
+        if (cryptoService.isEncryptedEnvelope(msg.content)) {
+          try {
+            displayContent = await cryptoService.decryptMessage(msg.content);
+            // Save decrypted content back to IndexedDB for future loads
+            await localStore.saveMessage({ ...msg, content: displayContent });
+          } catch {
+            displayContent = '[Unable to decrypt message]';
+          }
+        }
+
+        return {
+          id: msg.id,
+          senderId: msg.from,
+          recipientId: msg.to,
+          encryptedContent: '[encrypted]',
+          decryptedContent: displayContent,
+          status: msg.synced ? 'sent' : 'sending',
+          createdAt: new Date(msg.timestamp),
+          isEncrypted: true,
+          hasMedia: msg.hasMedia || false,
+          mediaAttachments: msg.mediaAttachments || [],
+          mediaUrls: msg.mediaUrls || [],
+        } as Message;
+      }));
+
+      transformedMessages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
       setConversations(prev => ({
         ...prev,
         [contactId]: {
@@ -545,13 +579,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           hasMore: false,
         },
       }));
-      
-      console.log(`✅ Conversation loaded: ${transformedMessages.length} messages displayed`);
     } catch (error) {
-      console.error('❌ Failed to load from local storage:', error);
-      console.error('   Error details:', error instanceof Error ? error.message : String(error));
-      
-      // Initialize empty conversation on error
+      console.error('Failed to load from local storage:', error);
+
       setConversations(prev => ({
         ...prev,
         [contactId]: {
@@ -581,33 +611,58 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [contacts, selectContact]);
 
-  // ✅ CRITICAL FIX #4: Actually send messages via WebSocket
+  // Send messages with real ECDH + AES-256-GCM encryption
   const sendMessage = useCallback(async (recipientId: string, content: string, files?: File[]) => {
     if (!user) {
-      console.error('❌ Cannot send message: User not authenticated');
+      console.error('Cannot send message: User not authenticated');
       return;
     }
-    
-    // ⚠️ SECURITY: Never log message content
-    console.log('📤 Sending message to:', recipientId);
+
+    // SECURITY: Never log message content
+    console.log('Sending encrypted message to:', recipientId);
 
     const messageId = crypto.randomUUID();
     const tempTimestamp = new Date();
+
+    // Find recipient's public key for encryption
+    const recipient = contacts.find(c => c.id === recipientId);
+    const recipientPublicKey = recipient?.publicKey;
+    const hasRealKey = recipientPublicKey && !recipientPublicKey.startsWith('api-') && recipientPublicKey !== 'api-key' && recipientPublicKey !== '';
+
+    // Encrypt the message content
+    let encryptedContent: string;
+    let sessionKey: string;
+    try {
+      if (hasRealKey) {
+        // Real ECDH + AES-256-GCM encryption with PFS
+        encryptedContent = await cryptoService.encryptMessage(content, recipientPublicKey);
+        sessionKey = 'ecdh-pfs';
+      } else {
+        // Recipient hasn't uploaded a real public key yet - warn but still send
+        console.warn('Recipient has no ECDH public key, message will not be end-to-end encrypted');
+        encryptedContent = content;
+        sessionKey = 'pending-key-exchange';
+      }
+    } catch (encryptError) {
+      console.error('Encryption failed:', encryptError);
+      throw new Error('Failed to encrypt message');
+    }
+
     const newMessage: Message = {
       id: messageId,
       senderId: user.id,
       recipientId,
-      encryptedContent: `encrypted:${content}`,
+      encryptedContent: '[encrypted]',
       decryptedContent: content,
       status: 'sending' as MessageStatus,
       createdAt: tempTimestamp,
-      isEncrypted: true,
+      isEncrypted: hasRealKey || false,
       hasMedia: (files && files.length > 0) || false,
       mediaAttachments: [],
       mediaUrls: [],
     };
 
-    // 🆕 SAVE TO LOCAL STORAGE FIRST (always succeeds, even offline)
+    // Save plaintext to local storage (local device only, encrypted at rest by OS)
     try {
       await localStore.saveMessage({
         id: messageId,
@@ -617,12 +672,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         timestamp: tempTimestamp.toISOString(),
         content: content,
         signature: undefined,
-        synced: false, // Not synced to server yet
+        synced: false,
         hasMedia: (files && files.length > 0) || false,
         mediaAttachments: [],
         mediaUrls: [],
       });
-      console.log('💾 Message saved to local storage');
     } catch (error) {
       console.error('Failed to save to local storage:', error);
     }
@@ -636,27 +690,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       },
     }));
 
-    // 🆕 If offline, queue for later
+    // If offline, queue for later
     if (!wsRef.current?.isConnected()) {
-      console.warn('⚠️ WebSocket offline - message queued for retry');
-      return; // offlineQueue will retry later
+      console.warn('WebSocket offline - message queued for retry');
+      return;
     }
 
     try {
       // Upload files first if any
-      let mediaIds: string[] = [];
       let mediaAttachments: any[] = [];
       let mediaUrls: string[] = [];
-      
+
       if (files && files.length > 0) {
-        console.log(`📎 Uploading ${files.length} file(s)...`);
+        console.log(`Uploading ${files.length} file(s)...`);
         const uploadResults = await MediaService.uploadMultiple(files, messageId);
-        mediaIds = uploadResults.map(r => r.id);
         mediaAttachments = uploadResults;
         mediaUrls = uploadResults.map(r => r.file_url);
-        console.log(`✅ Uploaded ${mediaIds.length} file(s)`);
-        console.log(`   Media URLs:`, mediaUrls);
-        
+
         // Update local storage with media information
         await localStore.saveMessage({
           id: messageId,
@@ -671,31 +721,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           mediaAttachments: mediaAttachments,
           mediaUrls: mediaUrls,
         });
-        console.log('💾 Updated message in local storage with media info');
-        
+
         // Update UI with media information
         setConversations(prev => ({
           ...prev,
           [recipientId]: {
             ...prev[recipientId],
             messages: prev[recipientId].messages.map(m =>
-              m.id === messageId ? { 
-                ...m, 
+              m.id === messageId ? {
+                ...m,
                 hasMedia: true,
                 mediaAttachments: mediaAttachments,
-                mediaUrls: mediaUrls 
+                mediaUrls: mediaUrls
               } : m
             ),
           },
         }));
       }
 
-      // ✅ SEND MESSAGE VIA RELAY SERVICE (Phase 3)
-      console.log('📨 Sending message via relay service...');
+      // Send encrypted message via relay service
       const relayResponse = await relayClient.sendMessage(
         recipientId,
-        newMessage.encryptedContent,
-        'session-key-placeholder', // Will be real ECDH key in Phase 2
+        encryptedContent,
+        sessionKey,
         {
           cryptoVersion: 'v1',
           encryptionAlgorithm: 'ECDH-AES256-GCM',
@@ -706,17 +754,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           mediaAttachments: mediaAttachments
         }
       );
-      
-      console.log(`📤 Message sent via relay: ${relayResponse.status} (expires: ${relayResponse.expires_at})`);
-      console.log(`   Message ID: ${messageId}`);
-      console.log(`   Recipient: ${recipientId}`);
-      
-      // 🆕 Mark as synced in local storage
+
+      console.log(`Message ${messageId} sent via relay: ${relayResponse.status}`);
+
+      // Mark as synced in local storage
       await localStore.markAsSynced(messageId);
 
     } catch (error) {
-      console.error('❌ Failed to send message:', error);
-      
+      console.error('Failed to send message:', error);
+
       // Update status to failed
       setConversations(prev => ({
         ...prev,
@@ -727,7 +773,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           ),
         },
       }));
-      
+
       throw error;
     }
   }, [user, contacts]);

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { User, AuthState } from '@/types/messaging';
 import { ENV } from '@/config/env';
+import { cryptoService } from '@/lib/cryptoService';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
@@ -15,7 +16,7 @@ const API_BASE_URL = ENV.API_URL;
 
 // API service functions
 const apiService = {
-  register: async (userData: { email: string; username: string; password: string; full_name: string }) => {
+  register: async (userData: { email: string; username: string; password: string; full_name: string; public_key?: string }) => {
     console.log('Sending registration request to:', `${API_BASE_URL}/auth/register`);
     console.log('Request data:', { ...userData, password: '[REDACTED]' });
     
@@ -130,6 +131,34 @@ const apiService = {
   },
 };
 
+/**
+ * Generate ECDH key pair and upload public key to backend.
+ * Called after login/register to ensure the user has a real crypto key.
+ */
+async function ensureEncryptionKeys(token: string): Promise<string> {
+  const publicKeyBase64 = await cryptoService.getPublicKeyBase64();
+
+  // Upload to backend
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/public-key`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ public_key: publicKeyBase64 }),
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to upload public key to server:', response.status);
+    }
+  } catch (error) {
+    console.warn('Could not upload public key (server may be offline):', error);
+  }
+
+  return publicKeyBase64;
+}
+
 // Demo users for testing (will be removed once API is fully integrated)
 const demoUsers: Record<string, { user: User; password: string }> = {
   'alice@secure.chat': {
@@ -209,24 +238,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('Role from localStorage:', storedRole);
           console.log('Final role (localStorage priority):', roleToUse);
           
+          // Ensure encryption keys exist (generate if needed, upload to backend)
+          const publicKeyBase64 = await ensureEncryptionKeys(token);
+
           const user: User = {
             id: userProfile.id,
             username: userProfile.username,
             email: userProfile.email,
             fullName: userProfile.full_name,
-            publicKey: userProfile.public_key || 'api-public-key',
+            publicKey: publicKeyBase64,
             role: roleToUse,
             isOnline: true,
             lastSeen: new Date(),
           };
-          
+
           setState({
             user,
             isAuthenticated: true,
             isLoading: false,
           });
-          
-          console.log('✅ Auth restored from token');
+
+          console.log('Auth restored from token');
           console.log('User:', user.username, 'Role:', user.role);
         } catch (error) {
           console.log('❌ Token verification failed:', error);
@@ -255,26 +287,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('API login successful:', response);
       
-      // Create user object from API response
+      // Store token first so ensureEncryptionKeys can use it
+      const token = response.access_token;
+
+      // Generate ECDH key pair and upload public key to backend
+      const publicKeyBase64 = await ensureEncryptionKeys(token);
+
+      // Create user object from API response with real public key
       const user: User = {
         id: response.user.id,
         username: response.user.username,
         email: response.user.email,
         fullName: response.user.full_name,
-        publicKey: response.user.public_key || 'api-public-key',
+        publicKey: publicKeyBase64,
         isOnline: true,
         lastSeen: new Date(),
         role: response.user.role || 'user',
       };
-      
+
       // Store token and user data
-      storeToken(response.access_token, user);
-      
+      storeToken(token, user);
+
       setState({
         user,
         isAuthenticated: true,
         isLoading: false,
-        privateKey: 'api-private-key',
       });
       
     } catch (apiError) {
@@ -304,43 +341,46 @@ const register = useCallback(async (email: string, username: string, password: s
   
   try {
     console.log('Attempting registration with API:', { email, username, fullName });
-    
-    // Call API to register user
+
+    // Generate ECDH key pair before registration so we can send the public key
+    const publicKeyBase64 = await cryptoService.getPublicKeyBase64();
+
+    // Call API to register user with real public key
     const response = await apiService.register({
       email,
       username,
       password,
       full_name: fullName,
+      public_key: publicKeyBase64,
     });
-    
-    console.log('API registration successful:', response);
-    
-    // ✅ Create user object from API response (now has nested user object)
+
+    console.log('API registration successful');
+
+    // Create user object from API response with real public key
     const userData = response.user || response;
     const user: User = {
       id: userData.id,
       username: userData.username,
       email: userData.email,
       fullName: userData.full_name,
-      publicKey: userData.public_key || 'api-generated-public-key',
+      publicKey: publicKeyBase64,
       isOnline: true,
       lastSeen: new Date(),
       role: userData.role || 'user',
     };
-    
-    // ✅ Store the access token and user data
+
+    // Store the access token and user data
     if (response.access_token) {
       storeToken(response.access_token, user);
     }
-    
+
     setState({
       user,
       isAuthenticated: true,
       isLoading: false,
-      privateKey: 'api-generated-private-key',
     });
-    
-    // ✅ Return full response including token and user
+
+    // Return full response including token and user
     return {
       user: user,
       token: response.access_token,
@@ -358,10 +398,13 @@ const register = useCallback(async (email: string, username: string, password: s
 
   const logout = useCallback(() => {
     console.log('Logging out user');
-    
+
     // Clear stored tokens and user data
     removeToken();
-    
+
+    // Clear crypto key cache (keys remain in IndexedDB for future login)
+    cryptoService.clearCache();
+
     setState({
       user: null,
       isAuthenticated: false,
