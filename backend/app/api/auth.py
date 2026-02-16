@@ -14,14 +14,19 @@ import uuid
 router = APIRouter()
 security = HTTPBearer()
 
-def create_public_key_entry(username: str) -> list:
-    """Helper: Create initial public_keys array for new user"""
-    public_key_string = f"pubkey_{username}"
-    public_key_bytes = public_key_string.encode('utf-8')
+def create_public_key_entry(username: str, public_key_data: str = None) -> list:
+    """Helper: Create initial public_keys array for new user.
+    If public_key_data is provided (base64-encoded JWK from client), use it directly.
+    Otherwise generate a placeholder that the client will replace on first login.
+    """
+    if public_key_data:
+        key_data = public_key_data
+    else:
+        key_data = base64.b64encode(f"pubkey_{username}".encode('utf-8')).decode('utf-8')
     return [{
         "key_id": f"key-{uuid.uuid4()}",
         "algorithm": "SECP256R1",
-        "key_data": base64.b64encode(public_key_bytes).decode('utf-8'),
+        "key_data": key_data,
         "created_at": datetime.utcnow().isoformat(),
         "status": "active"
     }]
@@ -83,8 +88,8 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
         # Hash password
         password_hash = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
         
-        # Create public_keys array with initial key
-        public_keys = create_public_key_entry(user.username)
+        # Create public_keys array - use client-provided key if available
+        public_keys = create_public_key_entry(user.username, user.public_key)
         
         # Create user
         db_user = User(
@@ -155,18 +160,65 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
         data={"sub": str(db_user.id)}, expires_delta=access_token_expires
     )
     
+    # Get active public key from public_keys array
+    public_key_str = get_active_public_key(db_user.public_keys) if db_user.public_keys else None
+
     return {
-        "access_token": access_token, 
+        "access_token": access_token,
         "token_type": "bearer",
         "user": {
             "id": str(db_user.id),
             "email": db_user.email,
             "username": db_user.username,
             "full_name": db_user.full_name,
+            "public_key": public_key_str,
             "is_active": db_user.is_active,
             "role": db_user.role
         }
     }
+
+
+@router.put("/public-key")
+async def update_public_key(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    body: dict = None
+):
+    """Update the current user's public key (called by frontend after key generation)"""
+    from fastapi import Body
+
+    # Accept public_key from request body
+    if not body or "public_key" not in body:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="public_key is required"
+        )
+
+    new_public_key = body["public_key"]
+
+    # Create new public_keys entry with the client-provided key
+    new_keys = [{
+        "key_id": f"key-{uuid.uuid4()}",
+        "algorithm": "SECP256R1",
+        "key_data": new_public_key,
+        "created_at": datetime.utcnow().isoformat(),
+        "status": "active"
+    }]
+
+    # Deactivate old keys and append new one
+    existing_keys = current_user.public_keys or []
+    for key in existing_keys:
+        key["status"] = "inactive"
+
+    current_user.public_keys = existing_keys + new_keys
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "success": True,
+        "public_key": new_public_key
+    }
+
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):

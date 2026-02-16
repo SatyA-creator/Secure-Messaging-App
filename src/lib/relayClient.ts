@@ -50,12 +50,8 @@ export class RelayClient {
   ): Promise<{ success: boolean; message_id: string; status: string; expires_at: string }> {
     const token = localStorage.getItem('authToken');
     
-    console.log('🔄 Relay API call:', {
-      url: `${this.baseUrl}/send`,
-      recipientId,
-      hasToken: !!token,
-      hasMedia: mediaInfo?.hasMedia || false
-    });
+    // SECURITY: Only log metadata, never message content
+    console.log('Relay: sending encrypted message to', recipientId);
     
     const response = await fetch(`${this.baseUrl}/send`, {
       method: 'POST',
@@ -76,17 +72,15 @@ export class RelayClient {
       })
     });
 
-    console.log('📡 Relay API response status:', response.status);
+    console.log('Relay API response:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Relay API error:', errorText);
-      throw new Error(`Relay send failed: ${response.statusText} - ${errorText}`);
+      console.error('Relay API error:', response.status);
+      throw new Error(`Relay send failed: ${response.statusText}`);
     }
 
     const result = await response.json();
-    // ⚠️ SECURITY: Don't log full result which may contain message IDs
-    console.log('✅ Relay API success');
     return result;
   }
 
@@ -157,56 +151,42 @@ export class RelayClient {
     currentUserId: string
   ): Promise<void> {
     try {
-      console.log(`📦 Processing relay message ${relayMsg.id}:`, {
-        sender: relayMsg.sender_id,
-        recipient: relayMsg.recipient_id,
-        currentUser: currentUserId
-      });
-      
       // Determine conversation ID (the other person in the conversation)
       const conversationId = relayMsg.sender_id === currentUserId
         ? relayMsg.recipient_id
         : relayMsg.sender_id;
 
-      console.log(`💾 Saving to conversationId: ${conversationId}`);
-      
-      // Strip 'encrypted:' prefix from content for storage
-      const contentToSave = relayMsg.encrypted_content.startsWith('encrypted:')
-        ? relayMsg.encrypted_content.substring(10)
-        : relayMsg.encrypted_content;
+      // Decrypt the content before storing locally
+      // The actual decryption is handled by ChatContext's handleNewMessage,
+      // so here we just pass through the encrypted content for the handler to decrypt.
+      // The relay client stores the raw encrypted content; ChatContext decrypts it.
+      const contentToSave = relayMsg.encrypted_content;
 
-      // Save to IndexedDB
+      // Save to IndexedDB (content will be decrypted by ChatContext before display)
       const localMessage: Omit<LocalMessage, 'createdAt'> = {
         id: relayMsg.id,
         conversationId,
         from: relayMsg.sender_id,
         to: relayMsg.recipient_id,
         timestamp: relayMsg.created_at,
-        content: contentToSave, // Decrypted/clean content
-        signature: undefined, // Legacy field
-        synced: true, // Received from relay
-        // Crypto metadata
+        content: contentToSave,
+        signature: undefined,
+        synced: true,
         cryptoVersion: relayMsg.crypto_version,
         encryptionAlgorithm: relayMsg.encryption_algorithm,
         kdfAlgorithm: relayMsg.kdf_algorithm,
         signatures: relayMsg.signatures,
-        // Media attachments
         hasMedia: relayMsg.has_media || false,
         mediaAttachments: relayMsg.media_refs || [],
         mediaUrls: relayMsg.media_refs?.map((m: any) => m.file_url) || []
       };
 
       await localStore.saveMessage(localMessage);
-      console.log(`✅ Successfully saved relay message ${relayMsg.id} to IndexedDB (conversation: ${conversationId})`);
 
       // Acknowledge to server (server will delete it)
-      const ackSuccess = await this.acknowledgeMessage(relayMsg.id);
-      if (ackSuccess) {
-        console.log(`✅ Acknowledged message ${relayMsg.id} - server will delete it`);
-      }
+      await this.acknowledgeMessage(relayMsg.id);
     } catch (error) {
-      console.error(`❌ Failed to process relay message ${relayMsg.id}:`, error);
-      console.error('   Error details:', error instanceof Error ? error.message : String(error));
+      console.error(`Failed to process relay message ${relayMsg.id}:`, error);
       // Don't ACK if we couldn't save - message will be redelivered
     }
   }
