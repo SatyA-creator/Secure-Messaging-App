@@ -14,6 +14,7 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
   const hasMedia = (message.mediaAttachments && message.mediaAttachments.length > 0) || 
                    (message.mediaUrls && message.mediaUrls.length > 0);
   const hasText = message.decryptedContent && message.decryptedContent.trim() !== '' && message.decryptedContent !== 'encrypted:';
+  const isDecryptionError = message.decryptedContent === '[Unable to decrypt message]';
 
   // ⚠️ SECURITY: Never log message content to console
 
@@ -119,9 +120,24 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
         
         {/* Text content */}
         {hasText && (
-          <p className="text-sm leading-relaxed break-words">
-            {message.decryptedContent?.replace(/^encrypted:/, '') || '[Encrypted message]'}
-          </p>
+          <>
+            {isDecryptionError ? (
+              <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+                <AlertCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-destructive mb-1">Unable to decrypt message</p>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    This message was encrypted with a different encryption key. 
+                    {!isOwn && " Ask the sender to refresh their contacts and resend."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed break-words">
+                {message.decryptedContent?.replace(/^encrypted:/, '') || '[Encrypted message]'}
+              </p>
+            )}
+          </>
         )}
         
         <div className={cn(

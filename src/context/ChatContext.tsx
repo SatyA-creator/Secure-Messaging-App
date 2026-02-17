@@ -194,15 +194,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           try {
             if (cryptoService.isEncryptedEnvelope(encryptedContent)) {
               // Real ECDH + AES-256-GCM encrypted message
+              console.log(`🔓 Attempting to decrypt message ${messageId}`);
               decryptedContent = await cryptoService.decryptMessage(encryptedContent);
+              console.log(`✅ Successfully decrypted message ${messageId}`);
             } else if (typeof encryptedContent === 'string' && encryptedContent.startsWith('encrypted:')) {
               // Legacy format: strip prefix (backward compat for old messages)
               decryptedContent = encryptedContent.substring(10);
             } else {
               decryptedContent = encryptedContent;
             }
-          } catch (decryptError) {
-            console.error(`Failed to decrypt message ${messageId}:`, decryptError);
+          } catch (decryptError: any) {
+            console.error(`❌ Failed to decrypt message ${messageId}:`, {
+              error: decryptError.message,
+              errorName: decryptError.name,
+              sender: senderId
+            });
+            
+            // Check if it's a key mismatch
+            if (decryptError.name === 'OperationError' || decryptError.message?.includes('operation failed')) {
+              console.error('💡 KEY MISMATCH: The sender encrypted this message with a public key that does not match your current private key.');
+              console.error('💡 This happens when you log in from different devices or browsers.');
+              console.error('💡 Solution: Ask the sender to refresh their contacts list and resend the message.');
+            }
+            
             decryptedContent = '[Unable to decrypt message]';
           }
 
@@ -565,7 +579,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const tempTimestamp = new Date();
 
     // Find recipient's public key for encryption
-    const recipient = contacts.find(c => c.id === recipientId);
+    let recipient = contacts.find(c => c.id === recipientId);
+    
+    // 🔐 CRITICAL FIX: Fetch fresh public key from server before encrypting
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${ENV.API_URL}/users/${recipientId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        const freshPublicKey = userData.public_key;
+        
+        if (freshPublicKey && freshPublicKey !== recipient?.publicKey) {
+          console.log('🔄 Updated recipient public key with fresh value from server');
+          
+          // Update the contact in state with fresh public key
+          setContacts(prev => prev.map(c => 
+            c.id === recipientId ? { ...c, publicKey: freshPublicKey } : c
+          ));
+          
+          // Use the fresh public key
+          recipient = { ...recipient, publicKey: freshPublicKey } as Contact;
+        }
+      } else {
+        console.warn('Could not fetch fresh public key, using cached value');
+      }
+    } catch (error) {
+      console.warn('Error fetching fresh public key:', error);
+    }
+    
     const recipientPublicKey = recipient?.publicKey;
     const hasRealKey = recipientPublicKey && !recipientPublicKey.startsWith('api-') && recipientPublicKey !== 'api-key' && recipientPublicKey !== '';
 
@@ -575,16 +622,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       if (hasRealKey) {
         // Real ECDH + AES-256-GCM encryption with PFS
+        console.log('🔐 Encrypting message with recipient public key');
         encryptedContent = await cryptoService.encryptMessage(content, recipientPublicKey);
         sessionKey = 'ecdh-pfs';
+        console.log('✅ Message encrypted successfully');
       } else {
         // Recipient hasn't uploaded a real public key yet - warn but still send
-        console.warn('Recipient has no ECDH public key, message will not be end-to-end encrypted');
+        console.warn('⚠️ Recipient has no ECDH public key, message will not be end-to-end encrypted');
         encryptedContent = content;
         sessionKey = 'pending-key-exchange';
       }
     } catch (encryptError) {
-      console.error('Encryption failed:', encryptError);
+      console.error('❌ Encryption failed:', encryptError);
       throw new Error('Failed to encrypt message');
     }
 

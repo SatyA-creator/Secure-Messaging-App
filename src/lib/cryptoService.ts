@@ -269,59 +269,75 @@ class CryptoService {
    * 5. Decrypt: AES-256-GCM(aes_key, ciphertext)
    */
   async decryptMessage(encryptedContent: string): Promise<string> {
-    // 1. Parse envelope
-    const envelope: EncryptedEnvelope = JSON.parse(atob(encryptedContent));
+    try {
+      // 1. Parse envelope
+      const envelope: EncryptedEnvelope = JSON.parse(atob(encryptedContent));
 
-    if (envelope.v !== '1' || envelope.alg !== 'ECDH-AES256-GCM') {
-      throw new Error(`Unsupported crypto version/algorithm: ${envelope.v}/${envelope.alg}`);
+      if (envelope.v !== '1' || envelope.alg !== 'ECDH-AES256-GCM') {
+        throw new Error(`Unsupported crypto version/algorithm: ${envelope.v}/${envelope.alg}`);
+      }
+
+      // 2. Import sender's ephemeral public key
+      const ephemeralPublicKey = await crypto.subtle.importKey(
+        'jwk',
+        envelope.epk,
+        { name: 'ECDH', namedCurve: ECDH_CURVE },
+        true,
+        []
+      );
+
+      // 3. Get our private key
+      const { privateKey } = await this.getOrCreateKeyPair();
+
+      // 4. Derive shared secret via ECDH
+      const sharedBits = await crypto.subtle.deriveBits(
+        { name: 'ECDH', public: ephemeralPublicKey },
+        privateKey,
+        256
+      );
+
+      // 5. Derive AES key via HKDF-SHA256
+      const salt = base64ToArrayBuffer(envelope.salt);
+      const hkdfBaseKey = await crypto.subtle.importKey(
+        'raw',
+        sharedBits,
+        'HKDF',
+        false,
+        ['deriveKey']
+      );
+      const aesKey = await crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt, info: HKDF_INFO },
+        hkdfBaseKey,
+        { name: 'AES-GCM', length: AES_KEY_LENGTH },
+        false,
+        ['decrypt']
+      );
+
+      // 6. Decrypt with AES-256-GCM
+      const iv = base64ToArrayBuffer(envelope.iv);
+      const ct = base64ToArrayBuffer(envelope.ct);
+      const plaintext = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        aesKey,
+        ct
+      );
+
+      return new TextDecoder().decode(plaintext);
+    } catch (error: any) {
+      console.error('❌ Decryption failed:', {
+        error: error.message,
+        errorName: error.name,
+        errorStack: error.stack
+      });
+      
+      // Check if it's a key mismatch issue
+      if (error.name === 'OperationError' || error.message?.includes('operation failed')) {
+        console.error('🔑 Key mismatch detected: Message was encrypted with a different public key than your current private key');
+        console.error('💡 This can happen if you logged in from a different device or browser');
+      }
+      
+      throw error;
     }
-
-    // 2. Import sender's ephemeral public key
-    const ephemeralPublicKey = await crypto.subtle.importKey(
-      'jwk',
-      envelope.epk,
-      { name: 'ECDH', namedCurve: ECDH_CURVE },
-      true,
-      []
-    );
-
-    // 3. Get our private key
-    const { privateKey } = await this.getOrCreateKeyPair();
-
-    // 4. Derive shared secret via ECDH
-    const sharedBits = await crypto.subtle.deriveBits(
-      { name: 'ECDH', public: ephemeralPublicKey },
-      privateKey,
-      256
-    );
-
-    // 5. Derive AES key via HKDF-SHA256
-    const salt = base64ToArrayBuffer(envelope.salt);
-    const hkdfBaseKey = await crypto.subtle.importKey(
-      'raw',
-      sharedBits,
-      'HKDF',
-      false,
-      ['deriveKey']
-    );
-    const aesKey = await crypto.subtle.deriveKey(
-      { name: 'HKDF', hash: 'SHA-256', salt, info: HKDF_INFO },
-      hkdfBaseKey,
-      { name: 'AES-GCM', length: AES_KEY_LENGTH },
-      false,
-      ['decrypt']
-    );
-
-    // 6. Decrypt with AES-256-GCM
-    const iv = base64ToArrayBuffer(envelope.iv);
-    const ct = base64ToArrayBuffer(envelope.ct);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      aesKey,
-      ct
-    );
-
-    return new TextDecoder().decode(plaintext);
   }
 }
 
