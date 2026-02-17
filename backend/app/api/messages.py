@@ -62,11 +62,10 @@ async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID,
     received_by_current = db.query(Message).filter(Message.recipient_id == current_user_id).count()
     print(f"📥 Messages received by {current_user_id}: {received_by_current}")
     
-    # Debug: Show all sender and recipient IDs in database
+    # Debug: Show message count only (content hidden for security)
     all_messages = db.query(Message).all()
-    print(f"\n📋 All messages in database:")
-    for i, msg in enumerate(all_messages[:10]):  # Show first 10
-        print(f"   Message {i+1}: sender={msg.sender_id} (type: {type(msg.sender_id)}), recipient={msg.recipient_id} (type: {type(msg.recipient_id)})")
+    # ⚠️ SECURITY: Sanitized log - detailed message content removed
+    print(f"\n📋 Total messages in database: {len(all_messages)}")
     
     # Ensure UUIDs are proper UUID objects for comparison
     current_user_uuid = current_user_id if isinstance(current_user_id, uuid.UUID) else uuid.UUID(str(current_user_id))
@@ -79,10 +78,9 @@ async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID,
     
     print(f"💬 Found {len(messages)} messages in conversation")
     
-    # Debug: Print first few messages if they exist
+    # ⚠️ SECURITY: Sanitized log - showing summary only
     if messages:
-        for i, msg in enumerate(messages[:3]):
-            print(f"  Message {i+1}: sender={msg.sender_id}, recipient={msg.recipient_id}, content_length={len(msg.encrypted_content) if msg.encrypted_content else 0}")
+        print(f"  📊 Message summary: {len(messages)} total, first_id={messages[0].id if messages else 'none'}, last_id={messages[-1].id if messages else 'none'}")
     
     # Build response with media attachments
     response = []

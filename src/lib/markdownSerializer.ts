@@ -174,7 +174,16 @@ export function conversationToMarkdown(
   messages.forEach((msg, idx) => {
     try {
       console.log(`▶️ Converting ${idx + 1}/${messages.length}`, msg.id);
-      console.log('   Message structure:', JSON.stringify(msg, null, 2));
+      // ⚠️ SECURITY: Sanitized log - hiding message content
+      console.log('   Message metadata:', {
+        id: msg.id,
+        senderId: msg.senderId,
+        recipientId: msg.recipientId,
+        timestamp: msg.createdAt,
+        hasMedia: msg.hasMedia,
+        isEncrypted: msg.isEncrypted
+        // decryptedContent hidden for security
+      });
       successful.push(messageToMarkdown(msg));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

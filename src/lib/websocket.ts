@@ -51,7 +51,14 @@ class WebSocketService {
         this.ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('📨 WebSocket message received:', data);
+            // ⚠️ SECURITY: Sanitized log - hiding message content
+            console.log('📨 WebSocket message received:', {
+              type: data.type,
+              message_id: data.message_id || data.id,
+              timestamp: data.timestamp,
+              has_media: data.has_media
+              // encrypted_content hidden for security
+            });
             this.handleMessage(data);
           } catch (error) {
             console.error('❌ Failed to parse WebSocket message:', error);

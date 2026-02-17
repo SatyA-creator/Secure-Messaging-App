@@ -270,7 +270,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // ✅ CRITICAL FIX #3: Listen for contact_added events
       const handleContactAdded = (data: any) => {
-        console.log('👥 New contact added:', data);
+        console.log('👥 New contact added:', {
+          contact_id: data.contact_id || data.user_id,
+          username: data.username,
+          email: data.email
+        });
         
         const contactId = data.contact_id || data.user_id;
         if (contactId) {
@@ -308,7 +312,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // ✅ Listen for message_sent confirmation
       const handleMessageSent = async (data: any) => {
-        console.log('✅ Message sent confirmation:', data);
+        // ⚠️ SECURITY: Sanitized log - hiding message content
+        console.log('✅ Message sent confirmation:', {
+          message_id: data.message_id,
+          status: data.status,
+          timestamp: data.timestamp,
+          has_media: data.has_media
+          // content hidden for security
+        });
         const messageId = data.message_id;
         const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
         
