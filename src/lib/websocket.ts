@@ -128,8 +128,7 @@ class WebSocketService {
       if (userId) {
         await relayClient.processRelayMessage(relayMsg, userId);
         
-        // ✅ Emit new_message event to update UI
-        console.log('📨 Emitting new_message event from relay message');
+        // Emit new_message event to update UI
         const handlers = this.eventHandlers.get('new_message') || [];
         handlers.forEach(handler => {
           try {
@@ -143,7 +142,7 @@ class WebSocketService {
               media_attachments: relayMsg.media_refs || []
             });
           } catch (error) {
-            console.error('❌ Error in new_message handler:', error);
+            console.error('Error in new_message handler:', error);
           }
         });
       }
@@ -159,12 +158,11 @@ class WebSocketService {
       const pendingMessages = await relayClient.fetchPendingMessages();
       
       if (pendingMessages.length > 0) {
-        console.log(`📥 Processing ${pendingMessages.length} pending relay messages`);
+        console.log(`Processing ${pendingMessages.length} pending relay messages`);
         for (const msg of pendingMessages) {
           await relayClient.processRelayMessage(msg, this.userId);
-          
-          // ✅ Emit new_message event to update UI for each pending message
-          console.log(`📨 Emitting new_message event for pending relay message ${msg.id}`);
+
+          // Emit new_message event to update UI for each pending message
           const handlers = this.eventHandlers.get('new_message') || [];
           handlers.forEach(handler => {
             try {
@@ -178,7 +176,7 @@ class WebSocketService {
                 media_attachments: msg.media_refs || []
               });
             } catch (error) {
-              console.error('❌ Error in new_message handler:', error);
+              console.error('Error in new_message handler:', error);
             }
           });
         }
