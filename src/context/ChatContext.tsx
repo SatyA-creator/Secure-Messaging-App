@@ -106,17 +106,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
       setContacts(apiContacts);
 
-      // Initialize empty conversations for each contact
-      const convos: Record<string, Conversation> = {};
-      apiContacts.forEach(contact => {
-        convos[contact.id] = {
-          contactId: contact.id,
-          messages: [],
-          isLoading: false,
-          hasMore: false,
-        };
+      // Initialize conversations for each contact, preserving existing messages
+      setConversations(prev => {
+        const updated: Record<string, Conversation> = {};
+        apiContacts.forEach(contact => {
+          updated[contact.id] = {
+            contactId: contact.id,
+            messages: prev[contact.id]?.messages || [],
+            isLoading: false,
+            hasMore: false,
+          };
+        });
+        return updated;
       });
-      setConversations(convos);
       console.log('Contacts state updated successfully');
 
     } catch (error) {
@@ -311,7 +313,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
 
       // ✅ Listen for message_sent confirmation
-      const handleMessageSent = async (data: any) => {
+      const handleMessageSent = (data: any) => {
         // ⚠️ SECURITY: Sanitized log - hiding message content
         console.log('✅ Message sent confirmation:', {
           message_id: data.message_id,
@@ -322,66 +324,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
         const messageId = data.message_id;
         const serverTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-        
+
         if (messageId) {
-          // Find which contact this message belongs to
-          let targetContactId: string | null = null;
-          
-          setConversations(prev => {
-            const updated = { ...prev };
-            Object.keys(updated).forEach(contactId => {
-              const messageIndex = updated[contactId].messages.findIndex(m => m.id === messageId);
-              if (messageIndex >= 0) {
-                targetContactId = contactId;
-              }
-            });
-            return updated;
-          });
-          
-          // Refetch conversation to get media attachments
-          if (targetContactId && user?.id) {
-            console.log('🔄 Refetching conversation to get media attachments');
-            try {
-              const response = await fetch(
-                `${ENV.API_URL}/messages/conversation/${targetContactId}?current_user_id=${user.id}`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                  },
-                }
-              );
-              
-              if (response.ok) {
-                const messages: any[] = await response.json();
-                console.log(`📥 Refetched ${messages.length} messages with media`);
-                
-                setConversations(prev => ({
-                  ...prev,
-                  [targetContactId]: {
-                    ...prev[targetContactId],
-                    messages: messages.map((msg: any) => ({
-                      id: msg.id,
-                      senderId: msg.sender_id,
-                      recipientId: msg.recipient_id,
-                      encryptedContent: msg.encrypted_content,
-                      decryptedContent: msg.encrypted_content?.replace('encrypted:', '') || '',
-                      createdAt: new Date(msg.created_at),
-                      isRead: msg.is_read,
-                      isEncrypted: msg.encrypted_content?.startsWith('encrypted:') || false,
-                      status: 'sent' as MessageStatus,
-                      mediaAttachments: msg.media_attachments || [],
-                      mediaUrls: msg.media_attachments?.map((m: any) => m.file_url) || [],
-                    })),
-                    isLoading: false,
-                  },
-                }));
-              }
-            } catch (error) {
-              console.error('❌ Failed to refetch conversation:', error);
-            }
-          }
-          
-          // Update message status to 'sent' and use server timestamp + media
+          // Update message status to 'sent' and sync server timestamp
           setConversations(prev => {
             const updated = { ...prev };
             Object.keys(updated).forEach(contactId => {
@@ -389,16 +334,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               if (messageIndex >= 0) {
                 updated[contactId] = {
                   ...updated[contactId],
-                  messages: updated[contactId].messages.map((m, idx) =>
-                    m.id === messageId ? { 
-                      ...m, 
+                  messages: updated[contactId].messages.map(m =>
+                    m.id === messageId ? {
+                      ...m,
                       status: 'sent' as MessageStatus,
-                      createdAt: serverTimestamp,  // Use server timestamp for consistency
+                      createdAt: serverTimestamp,
                       hasMedia: data.has_media || m.hasMedia,
                       mediaAttachments: data.media_attachments || m.mediaAttachments || [],
                       mediaUrls: data.media_attachments?.map((media: any) => media.file_url) || m.mediaUrls || [],
                     } : m
-                  ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()), // Sort after update
+                  ).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
                 };
               }
             });

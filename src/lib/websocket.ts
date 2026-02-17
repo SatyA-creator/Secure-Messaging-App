@@ -71,7 +71,7 @@ class WebSocketService {
           // If disconnected due to authentication error (403), get fresh token
           if (event.code === 1008 || event.code === 1006) {
             console.log('🔑 Authentication error detected, will use fresh token on reconnect');
-            const freshToken = localStorage.getItem('token');
+            const freshToken = localStorage.getItem('authToken');
             if (freshToken) {
               this.token = freshToken;
             }
@@ -195,7 +195,7 @@ class WebSocketService {
       
       setTimeout(() => {
         // ✅ Get fresh token from localStorage for reconnection
-        const freshToken = localStorage.getItem('token');
+        const freshToken = localStorage.getItem('authToken');
         if (freshToken) {
           this.token = freshToken;  // Update stored token
           this.connect(this.userId, freshToken).catch(() => {

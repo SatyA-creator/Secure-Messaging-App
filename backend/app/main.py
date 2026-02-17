@@ -14,6 +14,8 @@ from app.database import init_db
 from app.api import router as api_router
 from app.services.email_queue import EmailQueue
 from app.services.relay_service import relay_service
+# ✅ FIX: Use the shared manager so relay.py and main.py share the same connection state
+from app.websocket_manager import manager
 
 # Configure logging
 logging.basicConfig(
@@ -21,31 +23,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-        
-    async def connect(self, websocket: WebSocket, user_id: str):
-        await websocket.accept()
-        self.active_connections[user_id] = websocket
-        logger.info(f"✅ User {user_id} connected to WebSocket")
-        
-    def disconnect(self, user_id: str):
-        if user_id in self.active_connections:
-            del self.active_connections[user_id]
-            logger.info(f"❌ User {user_id} disconnected from WebSocket")
-            
-    async def send_personal_message(self, message: str, user_id: str):
-        if user_id in self.active_connections:
-            await self.active_connections[user_id].send_text(message)
-            
-    async def broadcast(self, message: str):
-        for connection in self.active_connections.values():
-            await connection.send_text(message)
-
-manager = ConnectionManager()
 
 # ✅ CREATE APP FIRST
 app = FastAPI(
@@ -191,7 +168,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             return
         
         logger.info(f"✅ User {user_id} authenticated with JWT")
-        await manager.connect(websocket, user_id)
+        await manager.connect(user_id, websocket)
         
         try:
             # Send connection confirmation
@@ -202,11 +179,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
             })
             
             # Notify others that user came online
-            await manager.broadcast(json.dumps({
+            await manager.broadcast({
                 "type": "user_online",
                 "user_id": user_id,
                 "timestamp": datetime.now().isoformat()
-            }))
+            })
             
             while True:
                 data = await websocket.receive_text()
@@ -278,26 +255,26 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                             
                             # Forward message to recipient
                             await manager.send_personal_message(
-                                json.dumps({
+                                recipient_id,
+                                {
                                     "type": "new_message",
                                     "sender_id": user_id,
                                     "message_id": message_id,
                                     "encrypted_content": encrypted_content,
                                     "encrypted_session_key": encrypted_session_key,
                                     "timestamp": timestamp
-                                }),
-                                recipient_id
+                                }
                             )
-                            
+
                             # Send confirmation to sender
                             await manager.send_personal_message(
-                                json.dumps({
+                                user_id,
+                                {
                                     "type": "message_sent",
                                     "message_id": message_id,
                                     "status": "sent",
                                     "timestamp": timestamp
-                                }),
-                                user_id
+                                }
                             )
                             
                             logger.info(f"📨 Message forwarded from {user_id} to {recipient_id}")
@@ -379,7 +356,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     # Send to all recipients except sender
                                     for recipient_id in recipient_ids:
                                         await manager.send_personal_message(
-                                            json.dumps({
+                                            recipient_id,
+                                            {
                                                 "type": "new_group_message",
                                                 "group_id": group_id,
                                                 "sender_id": user_id,
@@ -387,21 +365,20 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                                 "encrypted_content": encrypted_content,
                                                 "encrypted_session_keys": encrypted_session_keys,
                                                 "timestamp": timestamp
-                                            }),
-                                            recipient_id
+                                            }
                                         )
                                         logger.info(f"  ✅ Sent to user {recipient_id}")
-                                    
+
                                     # Send confirmation to sender
                                     await manager.send_personal_message(
-                                        json.dumps({
+                                        user_id,
+                                        {
                                             "type": "group_message_sent",
                                             "group_id": group_id,
                                             "message_id": message_id,
                                             "status": "sent",
                                             "timestamp": timestamp
-                                        }),
-                                        user_id
+                                        }
                                     )
                                     
                                     logger.info(f"✅ Group message broadcast complete for group {group_id}")
@@ -421,33 +398,34 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                         message_id = payload.get("message_id")
                         if sender_id:
                             await manager.send_personal_message(
-                                json.dumps({
+                                sender_id,
+                                {
                                     "type": "message_delivered",
                                     "message_id": message_id,
                                     "timestamp": datetime.now().isoformat()
-                                }),
-                                sender_id
+                                }
                             )
-                    
+
                     elif message_type == "typing":
                         recipient_id = payload.get("recipient_id")
                         if recipient_id:
                             await manager.send_personal_message(
-                                json.dumps({
+                                recipient_id,
+                                {
                                     "type": "typing",
                                     "sender_id": user_id,
                                     "is_typing": payload.get("is_typing", False)
-                                }),
-                                recipient_id
+                                }
                             )
-                    
+
                     elif message_type == "contact_added":
                         inviter_id = payload.get("inviter_id")
                         contact_id = payload.get("contact_id")
-                        
+
                         if inviter_id:
                             await manager.send_personal_message(
-                                json.dumps({
+                                inviter_id,
+                                {
                                     "type": "contact_added",
                                     "contact_id": contact_id,
                                     "user_id": contact_id,
@@ -456,8 +434,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     "full_name": payload.get("full_name"),
                                     "is_online": False,
                                     "timestamp": datetime.now().isoformat()
-                                }),
-                                inviter_id
+                                }
                             )
                             logger.info(f"👥 Contact added notification sent")
                         
@@ -481,11 +458,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
     
     finally:
         manager.disconnect(user_id)
-        await manager.broadcast(json.dumps({
+        await manager.broadcast({
             "type": "user_offline",
             "user_id": user_id,
             "timestamp": datetime.now().isoformat()
-        }))
+        })
 
 
 logger.info(f"✅ FastAPI app initialized in {settings.ENVIRONMENT} mode")
