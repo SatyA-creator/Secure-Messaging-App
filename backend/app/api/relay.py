@@ -28,6 +28,8 @@ class RelayMessageCreate(BaseModel):
     has_media: bool = False
     media_refs: Optional[List[Dict[str, Any]]] = None
     ttl_days: Optional[int] = None
+    # ✅ Sender's self-encrypted copy for cross-device history
+    sender_encrypted_content: Optional[str] = None
 
 class MessageAcknowledgment(BaseModel):
     """Request model for acknowledging message delivery"""
@@ -94,6 +96,7 @@ async def send_relay_message(
             encryption_algorithm=message.encryption_algorithm,
             kdf_algorithm=message.kdf_algorithm,
             has_media=message.has_media,
+            sender_encrypted_content=message.sender_encrypted_content,
         )
         db.add(db_message)
         db.commit()

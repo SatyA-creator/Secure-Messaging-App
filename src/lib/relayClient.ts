@@ -46,13 +46,15 @@ export class RelayClient {
     mediaInfo?: {
       hasMedia: boolean;
       mediaAttachments?: any[];
-    }
+    },
+    // ✅ Self-encrypted copy so sender can read their messages on any device
+    senderEncryptedContent?: string
   ): Promise<{ success: boolean; message_id: string; status: string; expires_at: string }> {
     const token = localStorage.getItem('authToken');
-    
+
     // SECURITY: Only log metadata, never message content
     console.log('Relay: sending encrypted message to', recipientId);
-    
+
     const response = await fetch(`${this.baseUrl}/send`, {
       method: 'POST',
       headers: {
@@ -68,7 +70,8 @@ export class RelayClient {
         kdf_algorithm: cryptoMetadata?.kdfAlgorithm || 'HKDF-SHA256',
         signatures: cryptoMetadata?.signatures,
         has_media: mediaInfo?.hasMedia || false,
-        media_refs: mediaInfo?.mediaAttachments || []
+        media_refs: mediaInfo?.mediaAttachments || [],
+        sender_encrypted_content: senderEncryptedContent || null
       })
     });
 

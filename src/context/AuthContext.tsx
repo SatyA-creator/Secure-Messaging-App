@@ -132,28 +132,34 @@ const apiService = {
 };
 
 /**
- * Generate ECDH key pair and upload public key to backend.
- * Called after login/register to ensure the user has a real crypto key.
+ * Ensure the user has an ECDH key pair, and upload to backend ONLY if the key
+ * was just generated on this device. This prevents overwriting another device's
+ * key on every page refresh, which would break cross-device decryption.
  */
-async function ensureEncryptionKeys(token: string): Promise<string> {
+async function ensureEncryptionKeys(token: string, forceUpload = false): Promise<string> {
   const publicKeyBase64 = await cryptoService.getPublicKeyBase64();
+  const isNew = cryptoService.isKeyNewlyGenerated();
 
-  // Upload to backend
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/public-key`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ public_key: publicKeyBase64 }),
-    });
-
-    if (!response.ok) {
-      console.warn('Failed to upload public key to server:', response.status);
+  // Only upload if the key is brand-new (first login on this device) or explicitly forced
+  if (isNew || forceUpload) {
+    console.log(isNew ? '🔑 New device — uploading fresh public key' : '🔑 Forced key upload');
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/public-key`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ public_key: publicKeyBase64 }),
+      });
+      if (!response.ok) {
+        console.warn('Failed to upload public key to server:', response.status);
+      }
+    } catch (error) {
+      console.warn('Could not upload public key (server may be offline):', error);
     }
-  } catch (error) {
-    console.warn('Could not upload public key (server may be offline):', error);
+  } else {
+    console.log('🔑 Existing key — skipping re-upload to preserve cross-device consistency');
   }
 
   return publicKeyBase64;
@@ -290,8 +296,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store token first so ensureEncryptionKeys can use it
       const token = response.access_token;
 
-      // Generate ECDH key pair and upload public key to backend
-      const publicKeyBase64 = await ensureEncryptionKeys(token);
+      // Generate/load ECDH key pair. Force upload on explicit login
+      // so the server always has the current device's key after a fresh login.
+      const publicKeyBase64 = await ensureEncryptionKeys(token, true);
 
       // Create user object from API response with real public key
       const user: User = {

@@ -146,10 +146,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               let encryptedContent: string;
               let sessionKey: string;
 
+              let offlineSenderCopy: string | undefined;
               if (recipient?.publicKey && !recipient.publicKey.startsWith('api-') && recipient.publicKey !== 'api-key') {
                 // Encrypt with real ECDH + AES-256-GCM
                 encryptedContent = await cryptoService.encryptMessage(message.content, recipient.publicKey);
                 sessionKey = 'ecdh-pfs';
+                // Self-encrypted copy for cross-device history
+                try {
+                  const myPk = await cryptoService.getPublicKeyBase64();
+                  offlineSenderCopy = await cryptoService.encryptMessage(message.content, myPk);
+                } catch { /* non-critical */ }
               } else {
                 // Fallback: recipient has no real public key yet
                 encryptedContent = message.content;
@@ -164,7 +170,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   cryptoVersion: 'v1',
                   encryptionAlgorithm: 'ECDH-AES256-GCM',
                   kdfAlgorithm: 'HKDF-SHA256',
-                }
+                },
+                undefined,
+                offlineSenderCopy
               );
               return true;
             } catch (error) {
@@ -510,13 +518,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           if (newFromServer.length > 0) {
             console.log(`Recovering ${newFromServer.length} messages from server history`);
             for (const sm of newFromServer) {
+              const isSentByMe = String(sm.sender_id) === user?.id;
+              // For messages sent by this user, prefer the self-encrypted copy (decryptable on any device)
+              // For received messages, use the normal encrypted_content
+              const contentToStore = isSentByMe
+                ? (sm.sender_encrypted_content || sm.encrypted_content)
+                : sm.encrypted_content;
               await localStore.saveMessage({
                 id: String(sm.id),
                 conversationId: contactId,
                 from: String(sm.sender_id),
                 to: String(sm.recipient_id),
                 timestamp: sm.created_at,
-                content: sm.encrypted_content,
+                content: contentToStore,
                 synced: true,
                 hasMedia: sm.has_media || false,
                 mediaAttachments: sm.media_attachments || [],
@@ -545,7 +559,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Save decrypted content back to IndexedDB for future loads
             await localStore.saveMessage({ ...msg, content: displayContent });
           } catch {
-            displayContent = '[Unable to decrypt message]';
+            // Show a more informative message depending on direction
+            const isSentByMe = msg.from === user?.id;
+            displayContent = isSentByMe
+              ? '[Message sent from another device — not available here]'
+              : '[Unable to decrypt — possible encryption key mismatch across devices]';
           }
         }
 
@@ -661,6 +679,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Encrypt the message content
     let encryptedContent: string;
     let sessionKey: string;
+    let senderEncryptedContent: string | undefined;
     try {
       if (hasRealKey) {
         // Real ECDH + AES-256-GCM encryption with PFS
@@ -668,6 +687,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         encryptedContent = await cryptoService.encryptMessage(content, recipientPublicKey);
         sessionKey = 'ecdh-pfs';
         console.log('✅ Message encrypted successfully');
+
+        // ✅ Also encrypt a self-copy so sender can read this message on any device
+        const myPublicKey = await cryptoService.getPublicKeyBase64();
+        try {
+          senderEncryptedContent = await cryptoService.encryptMessage(content, myPublicKey);
+        } catch {
+          console.warn('⚠️ Could not create self-encrypted copy — cross-device history may be incomplete');
+        }
       } else {
         // Recipient hasn't uploaded a real public key yet - warn but still send
         console.warn('⚠️ Recipient has no ECDH public key, message will not be end-to-end encrypted');
@@ -770,7 +797,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }));
       }
 
-      // Send encrypted message via relay service
+      // Send encrypted message via relay service (with self-encrypted copy for cross-device history)
       const relayResponse = await relayClient.sendMessage(
         recipientId,
         encryptedContent,
@@ -783,7 +810,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         {
           hasMedia: mediaAttachments.length > 0,
           mediaAttachments: mediaAttachments
-        }
+        },
+        senderEncryptedContent
       );
 
       console.log(`Message ${messageId} sent via relay: ${relayResponse.status}`);

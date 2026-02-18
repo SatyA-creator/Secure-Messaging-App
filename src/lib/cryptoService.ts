@@ -70,6 +70,9 @@ function base64ToArrayBuffer(base64: string): Uint8Array {
 
 class CryptoService {
   private keyPairCache: { publicKey: CryptoKey; privateKey: CryptoKey } | null = null;
+  // ✅ Track whether the key was just generated (vs loaded from IndexedDB)
+  // Only upload to server when newly generated — prevents overwriting another device's key on refresh
+  private _keyIsNew = false;
 
   /**
    * Generate a new ECDH key pair (P-256)
@@ -146,23 +149,38 @@ class CryptoService {
   }
 
   /**
-   * Get or create the user's ECDH key pair (cached + IndexedDB backed)
+   * Get or create the user's ECDH key pair (cached + IndexedDB backed).
+   * Tracks whether the key was newly generated via isKeyNewlyGenerated().
    */
   async getOrCreateKeyPair(): Promise<{ publicKey: CryptoKey; privateKey: CryptoKey }> {
-    if (this.keyPairCache) return this.keyPairCache;
+    if (this.keyPairCache) {
+      // Already loaded this session — not new
+      this._keyIsNew = false;
+      return this.keyPairCache;
+    }
 
     // Try loading from IndexedDB
     const stored = await this.loadKeyPair();
     if (stored) {
       this.keyPairCache = stored;
+      this._keyIsNew = false;  // Existing key, don't overwrite server
       return stored;
     }
 
-    // Generate new key pair
+    // Generate new key pair — this device has no key yet
     const keyPair = await this.generateKeyPair();
     await this.saveKeyPair(keyPair);
     this.keyPairCache = { publicKey: keyPair.publicKey, privateKey: keyPair.privateKey };
+    this._keyIsNew = true;  // Newly generated — should upload to server
     return this.keyPairCache;
+  }
+
+  /**
+   * Returns true only if the key was just generated in this session
+   * (first login on this device/browser). Used to avoid unnecessary server uploads.
+   */
+  isKeyNewlyGenerated(): boolean {
+    return this._keyIsNew;
   }
 
   /**

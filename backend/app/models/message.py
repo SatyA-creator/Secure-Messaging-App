@@ -18,6 +18,9 @@ class Message(Base):
     # Encrypted Content (stored as text for compatibility)
     encrypted_content = Column(Text, nullable=False)
     encrypted_session_key = Column(Text, nullable=False)
+    # ✅ Sender's self-encrypted copy: encrypted for the SENDER's own public key
+    # so sender can decrypt their own messages on any device that has their private key
+    sender_encrypted_content = Column(Text, nullable=True)
     
     # Cryptographic Metadata (for algorithm agility and PQ readiness)
     crypto_version = Column(Text, nullable=False, default="v1", server_default="v1")

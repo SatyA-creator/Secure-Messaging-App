@@ -33,6 +33,8 @@ class MessageResponse(BaseModel):
     recipient_id: UUID
     encrypted_content: str
     encrypted_session_key: str
+    # ✅ Self-encrypted copy for sender to decrypt on any device
+    sender_encrypted_content: Optional[str] = None
     crypto_version: str
     encryption_algorithm: str
     kdf_algorithm: str

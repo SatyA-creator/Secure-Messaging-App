@@ -446,18 +446,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                     traceback.print_exc()
                     
         except WebSocketDisconnect:
-            manager.disconnect(user_id)
-            logger.info(f"❌ User {user_id} disconnected")
+            manager.disconnect(user_id, websocket)
+            logger.info(f"❌ User {user_id} disconnected one device")
         except Exception as e:
             logger.error(f"❌ WebSocket error for user {user_id}: {str(e)}")
-            manager.disconnect(user_id)
+            manager.disconnect(user_id, websocket)
 
     except Exception as e:
         logger.error(f"❌ WebSocket authentication error: {str(e)}")
         await websocket.close(code=1008)
 
     finally:
-        manager.disconnect(user_id)
+        manager.disconnect(user_id, websocket)
         # ✅ Update last_seen in DB when user disconnects
         now_utc = datetime.now(timezone.utc)
         try:
