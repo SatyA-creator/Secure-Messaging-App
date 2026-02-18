@@ -508,7 +508,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       try {
         const token = localStorage.getItem('authToken');
         const response = await fetch(
-          `${ENV.API_URL}/messages/conversation/${contactId}?current_user_id=${user?.id}`,
+          `${ENV.API_URL}/messages/conversation/${contactId}`,
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         if (response.ok) {

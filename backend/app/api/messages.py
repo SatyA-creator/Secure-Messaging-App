@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
+from app.api.auth import get_current_user
 from app.schemas.message import MessageCreate, MessageResponse, MediaAttachmentResponse
 from app.models.message import Message
 from app.models.user import User
@@ -44,8 +45,13 @@ async def send_message(message: MessageCreate, db: Session = Depends(get_db)):
     )
 
 @router.get("/conversation/{other_user_id}", response_model=List[MessageResponse])
-async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID, db: Session = Depends(get_db)):
+async def get_conversation(
+    other_user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Get conversation between current user and another user"""
+    current_user_id = current_user.id
     print(f"\n🔍 Querying conversation between {current_user_id} and {other_user_id}")
     print(f"   current_user_id type: {type(current_user_id)}")
     print(f"   other_user_id type: {type(other_user_id)}")
@@ -94,6 +100,7 @@ async def get_conversation(other_user_id: uuid.UUID, current_user_id: uuid.UUID,
             recipient_id=msg.recipient_id,
             encrypted_content=msg.encrypted_content,
             encrypted_session_key=msg.encrypted_session_key,
+            sender_encrypted_content=msg.sender_encrypted_content,
             created_at=msg.created_at,
             is_read=msg.is_read,
             has_media=len(media) > 0,
