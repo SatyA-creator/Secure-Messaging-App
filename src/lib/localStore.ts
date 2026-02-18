@@ -75,19 +75,7 @@ const db = new LocalMessagingDB();
 // API functions
 export class LocalStore {
   
-  // Message retention period in days
-  private readonly RETENTION_DAYS = 30;
-  
   /**
-   * Save a message to local storage with auto-expiration
-   */
-  async saveMessage(message: Omit<LocalMessage, 'createdAt' | 'expiresAt'>): Promise<LocalMessage> {
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + this.RETENTION_DAYS * 24 * 60 * 60 * 1000);
-    
-    const msg: LocalMessage = {
-      ...message,
-   **
    * Save a message to local storage
    */
   async saveMessage(message: Omit<LocalMessage, 'createdAt'>): Promise<LocalMessage> {
@@ -105,7 +93,19 @@ export class LocalStore {
         synced: msg.synced,
         hasMedia: msg.hasMedia,
         mediaAttachments: msg.mediaAttachments,
-        mediaUrls: msg.mediaUrlsd locally:', msg.id);
+        mediaUrls: msg.mediaUrls
+      });
+      return msg;
+    }
+    
+    await db.messages.add(msg);
+    
+    // Update conversation metadata
+    await this.updateConversationMeta(message.conversationId, {
+      lastMessage: new Date()
+    });
+    
+    console.log('💾 Message saved locally:', msg.id);
     return msg;
   }
 
@@ -187,15 +187,7 @@ export class LocalStore {
   }
 
   /**
-   * Clean up expired messages (older than 30 days)
-   * Returns the number of messages deleted
-   */
-  async cleanupExpiredMessages(): Promise<number> {
-    const now = new Date();
-    
-    // Find all expired messages
-    const expiredMessages = await db.messages
-     Get database statistics
+   * Get database statistics
    */
   async getStats() {
     const messageCount = await db.messages.count();
@@ -211,4 +203,4 @@ export class LocalStore {
 }
 
 // Export singleton instance
-export const localStore = new LocalStore
+export const localStore = new LocalStore();

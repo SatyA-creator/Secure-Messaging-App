@@ -3,14 +3,12 @@ import { localStore } from '@/lib/localStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { HardDrive, Trash2, Clock, AlertCircle } from 'lucide-react';
+import { HardDrive, Trash2 } from 'lucide-react';
 
 interface StorageStats {
   totalMessages: number;
   totalConversations: number;
   unsyncedMessages: number;
-  expiringSoon: number;
-  retentionDays: number;
 }
 
 export function StorageIndicator() {
@@ -29,13 +27,15 @@ export function StorageIndicator() {
   };
 
   const handleCleanup = async () => {
-    try {
-      const deleted = await localStore.cleanupExpiredMessages();
-      alert(`✅ Cleaned up ${deleted} expired messages`);
-      await loadStats();
-    } catch (error) {
-      console.error('Failed to cleanup:', error);
-      alert('❌ Cleanup failed');
+    if (confirm('⚠️ This will delete ALL your local messages. Continue?')) {
+      try {
+        await localStore.clearAllData();
+        alert('✅ All local data cleared');
+        await loadStats();
+      } catch (error) {
+        console.error('Failed to cleanup:', error);
+        alert('❌ Cleanup failed');
+      }
     }
   };
 
@@ -75,31 +75,16 @@ export function StorageIndicator() {
           </div>
         </div>
 
-        {/* Auto-Delete Info */}
+        {/* Storage Info */}
         <div className="flex items-start gap-2 p-3 bg-muted rounded-lg">
-          <Clock className="w-4 h-4 mt-0.5 text-blue-600" />
+          <HardDrive className="w-4 h-4 mt-0.5 text-blue-600" />
           <div className="flex-1">
-            <p className="text-sm font-medium">Auto-Delete Enabled</p>
+            <p className="text-sm font-medium">Local Storage</p>
             <p className="text-xs text-muted-foreground">
-              Messages older than {stats.retentionDays} days are automatically deleted
+              Messages are stored indefinitely on your device
             </p>
           </div>
         </div>
-
-        {/* Expiring Soon Warning */}
-        {stats.expiringSoon > 0 && (
-          <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <AlertCircle className="w-4 h-4 mt-0.5 text-yellow-600" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-yellow-900">
-                {stats.expiringSoon} message{stats.expiringSoon > 1 ? 's' : ''} expiring soon
-              </p>
-              <p className="text-xs text-yellow-700">
-                Will be deleted within 7 days
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Unsynced Messages */}
         {stats.unsyncedMessages > 0 && (
@@ -110,13 +95,13 @@ export function StorageIndicator() {
 
         {/* Manual Cleanup Button */}
         <Button
-          variant="outline"
+          variant="destructive"
           size="sm"
           className="w-full"
           onClick={handleCleanup}
         >
           <Trash2 className="w-4 h-4 mr-2" />
-          Clean Up Expired Messages
+          Clear All Local Data
         </Button>
       </CardContent>
     </Card>

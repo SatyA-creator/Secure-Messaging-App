@@ -4,7 +4,6 @@ import { StorageIndicator } from '@/components/chat/StorageIndicator';
 import { ArrowLeft, Shield, Database, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { localStore } from '@/lib/localStore';
-import { cryptoService } from '@/lib/cryptoService';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -82,26 +81,12 @@ export default function Settings() {
               <div className="flex-1">
                 <h3 className="font-medium">Local Storage Only</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Messages are stored only on your device, not on servers
+                  Messages are stored only on your device indefinitely
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                   Enabled
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-start justify-between p-4 border rounded-lg">
-              <div className="flex-1">
-                <h3 className="font-medium">Auto-Delete Messages</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Messages older than 30 days are automatically deleted
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                  30 Days
                 </span>
               </div>
             </div>
@@ -149,7 +134,7 @@ export default function Settings() {
             <p><strong>Version:</strong> 1.0.0</p>
             <p><strong>Encryption:</strong> ECDH P-256 + AES-256-GCM</p>
             <p><strong>Storage:</strong> IndexedDB (QuChatDB)</p>
-            <p><strong>Data Retention:</strong> 30 days automatic deletion</p>
+            <p><strong>Data Retention:</strong> Indefinite (manual deletion only)</p>
           </CardContent>
         </Card>
       </div>
