@@ -34,6 +34,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocketService | null>(null);
+  // Track real-time online user IDs from WebSocket events.
+  // Using a ref so both the WS handlers and fetchContactsFromAPI
+  // share the same mutable set without stale-closure issues.
+  const onlineUsersRef = useRef<Set<string>>(new Set());
 
   const selectGroup = useCallback((groupId: string) => {
     console.log('ChatContext: Selecting group:', groupId);
@@ -89,7 +93,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         unreadCount: 0,
       }));
       
-      setContacts(apiContacts);
+      // Merge API contacts with real-time online status from WebSocket events.
+      // The API doesn't know who is currently online; WebSocket events do.
+      // If user_online arrived before contacts loaded, onlineUsersRef already
+      // has those IDs — apply them here so we never show a live user as offline.
+      setContacts(prev => {
+        const existingMap = new Map(prev.map(c => [c.id, c]));
+        return apiContacts.map(c => {
+          const existing = existingMap.get(c.id);
+          const isOnline = onlineUsersRef.current.has(c.id) || (existing?.isOnline ?? false);
+          // Always prefer the WS-updated lastSeen over the stale DB value:
+          // - online: existing.lastSeen = new Date() set by handleUserOnline
+          // - offline: existing.lastSeen = server timestamp set by handleUserOffline
+          // Only fall back to DB value when we have no WS-set value yet.
+          const lastSeen = existing?.lastSeen ?? c.lastSeen;
+          return { ...c, isOnline, lastSeen, unreadCount: existing?.unreadCount ?? c.unreadCount };
+        });
+      });
 
       // Initialize conversations for each contact, preserving existing messages
       setConversations(prev => {
@@ -404,6 +424,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const userId = data.user_id;
         if (userId) {
           console.log(`✅ User ${userId} came online`);
+          // Persist in ref so fetchContactsFromAPI picks it up even if it runs late
+          onlineUsersRef.current.add(userId);
           setContacts(prev =>
             prev.map(c => c.id === userId ? { ...c, isOnline: true, lastSeen: new Date() } : c)
           );
@@ -413,9 +435,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const handleUserOffline = (data: any) => {
         const userId = data.user_id;
         if (userId) {
-          // ✅ FIX: Use the server's timestamp for accurate last seen time
           const lastSeenTime = data.timestamp ? new Date(data.timestamp) : new Date();
           console.log(`❌ User ${userId} went offline at ${lastSeenTime.toISOString()}`);
+          // Remove from ref so contacts that reload later show the correct offline state
+          onlineUsersRef.current.delete(userId);
           setContacts(prev =>
             prev.map(c => c.id === userId ? { ...c, isOnline: false, lastSeen: lastSeenTime } : c)
           );
@@ -507,8 +530,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // ✅ FIX: Also fetch server message history and merge so messages survive browser storage clears
       try {
         const token = localStorage.getItem('authToken');
+        // Send current_user_id as query param for backward compat with older
+        // backend deployments (e.g. Render) that still require it as a param.
+        // The updated local backend ignores it (JWT is the source of truth).
         const response = await fetch(
-          `${ENV.API_URL}/messages/conversation/${contactId}`,
+          `${ENV.API_URL}/messages/conversation/${contactId}?current_user_id=${user?.id}`,
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         if (response.ok) {
