@@ -199,6 +199,127 @@ class CryptoService {
   }
 
   /**
+   * Export the private key as a password-encrypted backup blob (for server storage).
+   * The private key JWK is encrypted with AES-256-GCM using a PBKDF2-derived key.
+   * The server stores the ciphertext and can never read the private key.
+   */
+  async exportPrivateKeyBackup(password: string): Promise<string> {
+    const { privateKey } = await this.getOrCreateKeyPair();
+    const privateKeyJwk = await crypto.subtle.exportKey('jwk', privateKey);
+    const encoder = new TextEncoder();
+
+    // Derive AES-256-GCM key from password via PBKDF2
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const passwordKey = await crypto.subtle.importKey(
+      'raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']
+    );
+    const aesKey = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+      passwordKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    );
+
+    // Encrypt the private key JWK
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      aesKey,
+      encoder.encode(JSON.stringify(privateKeyJwk))
+    );
+
+    const backup = {
+      alg: 'PBKDF2-AES-256-GCM',
+      iterations: 100000,
+      salt: arrayBufferToBase64(salt),
+      iv: arrayBufferToBase64(iv),
+      ct: arrayBufferToBase64(new Uint8Array(encrypted)),
+    };
+    return btoa(JSON.stringify(backup));
+  }
+
+  /**
+   * Restore the private key from a password-encrypted backup blob.
+   * Returns true if successful, false if the password is wrong or backup is corrupt.
+   * On success, the restored key is saved to IndexedDB and set as the active key.
+   */
+  async importPrivateKeyBackup(encryptedBackup: string, password: string): Promise<boolean> {
+    try {
+      const backup = JSON.parse(atob(encryptedBackup));
+      const encoder = new TextEncoder();
+
+      // Derive the same AES key from the password + stored salt
+      const passwordKey = await crypto.subtle.importKey(
+        'raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']
+      );
+      const aesKey = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: base64ToArrayBuffer(backup.salt),
+          iterations: backup.iterations || 100000,
+          hash: 'SHA-256',
+        },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+
+      // Decrypt the private key JWK
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: base64ToArrayBuffer(backup.iv) },
+        aesKey,
+        base64ToArrayBuffer(backup.ct)
+      );
+
+      const privateKeyJwk: JsonWebKey = JSON.parse(new TextDecoder().decode(decrypted));
+
+      // Import private key
+      const privateKey = await crypto.subtle.importKey(
+        'jwk',
+        privateKeyJwk,
+        { name: 'ECDH', namedCurve: ECDH_CURVE },
+        true,
+        ['deriveKey', 'deriveBits']
+      );
+
+      // Derive public key from the same JWK (x and y are always present in ECDH JWKs)
+      const publicKeyJwk: JsonWebKey = {
+        kty: privateKeyJwk.kty,
+        crv: privateKeyJwk.crv,
+        x: privateKeyJwk.x,
+        y: privateKeyJwk.y,
+        key_ops: [],
+        ext: true,
+      };
+      const publicKey = await crypto.subtle.importKey(
+        'jwk',
+        publicKeyJwk,
+        { name: 'ECDH', namedCurve: ECDH_CURVE },
+        true,
+        []
+      );
+
+      // Persist to IndexedDB and activate
+      await keyDb.keyPairs.put({
+        id: 'current',
+        publicKeyJwk,
+        privateKeyJwk,
+        createdAt: new Date().toISOString(),
+      });
+      this.keyPairCache = { publicKey, privateKey };
+      this._keyIsNew = false;
+
+      console.log('✅ Private key restored from encrypted backup');
+      return true;
+    } catch (err) {
+      console.warn('⚠️ Could not restore key backup (wrong password or corrupt data):', err);
+      return false;
+    }
+  }
+
+  /**
    * Check if a string looks like an encrypted envelope (vs legacy plaintext)
    */
   isEncryptedEnvelope(content: string): boolean {

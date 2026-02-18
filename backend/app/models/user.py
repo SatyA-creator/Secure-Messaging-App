@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, LargeBinary, Index, JSON
+from sqlalchemy import Column, String, Boolean, DateTime, LargeBinary, Index, JSON, Text
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
 import uuid
@@ -16,6 +16,12 @@ class User(Base):
     # Encryption Keys (Multi-key storage for algorithm agility and key rotation)
     # Structure: [{"key_id": str, "algorithm": str, "key_data": bytes, "created_at": str, "status": str}]
     public_keys = Column(JSON, nullable=False)
+
+    # Encrypted private key backup for cross-device sync.
+    # The private key JWK is encrypted with a PBKDF2-derived AES-256-GCM key
+    # so only the user (who knows their password) can decrypt it.
+    # Server never sees the plaintext private key.
+    encrypted_private_key = Column(Text, nullable=True)
     
     # User Info
     full_name = Column(String(255), nullable=True)

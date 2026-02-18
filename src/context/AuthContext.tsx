@@ -132,36 +132,31 @@ const apiService = {
 };
 
 /**
- * Ensure the user has an ECDH key pair, and upload to backend ONLY if the key
- * was just generated on this device. This prevents overwriting another device's
- * key on every page refresh, which would break cross-device decryption.
+ * Upload the public key to the server.
  */
-async function ensureEncryptionKeys(token: string, forceUpload = false): Promise<string> {
-  const publicKeyBase64 = await cryptoService.getPublicKeyBase64();
-  const isNew = cryptoService.isKeyNewlyGenerated();
-
-  // Only upload if the key is brand-new (first login on this device) or explicitly forced
-  if (isNew || forceUpload) {
-    console.log(isNew ? '🔑 New device — uploading fresh public key' : '🔑 Forced key upload');
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/public-key`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ public_key: publicKeyBase64 }),
-      });
-      if (!response.ok) {
-        console.warn('Failed to upload public key to server:', response.status);
-      }
-    } catch (error) {
-      console.warn('Could not upload public key (server may be offline):', error);
+async function uploadPublicKey(token: string, publicKeyBase64: string): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/public-key`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ public_key: publicKeyBase64 }),
+    });
+    if (!response.ok) {
+      console.warn('Failed to upload public key:', response.status);
     }
-  } else {
-    console.log('🔑 Existing key — skipping re-upload to preserve cross-device consistency');
+  } catch (err) {
+    console.warn('Could not upload public key (server offline?):', err);
   }
+}
 
+/**
+ * Ensure the user has an ECDH key pair for page-refresh (no password available).
+ * Never re-uploads on refresh — only loads from IndexedDB.
+ */
+async function ensureEncryptionKeys(token: string): Promise<string> {
+  const publicKeyBase64 = await cryptoService.getPublicKeyBase64();
+  // On page-refresh we do NOT re-upload; login() handles the authoritative upload.
+  console.log('🔑 Page refresh — using existing key from IndexedDB (no upload)');
   return publicKeyBase64;
 }
 
@@ -284,25 +279,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     setState(prev => ({ ...prev, isLoading: true }));
-    
+
     try {
       console.log('Attempting login with API:', { email });
-      
-      // Try API login first
       const response = await apiService.login(email, password);
-      
       console.log('API login successful:', response);
-      
-      // Store token first so ensureEncryptionKeys can use it
+
       const token = response.access_token;
+      const userId = response.user.id;
 
-      // Generate/load ECDH key pair. Force upload on explicit login
-      // so the server always has the current device's key after a fresh login.
-      const publicKeyBase64 = await ensureEncryptionKeys(token, true);
+      // ── Step 1: Try to restore the private key from the server backup ──
+      // This is how cross-device sync works: device B logs in and fetches
+      // the encrypted backup that device A created, then decrypts it with
+      // the user's password to obtain the SAME private key as device A.
+      let keyRestored = false;
+      try {
+        const backupResp = await fetch(`${API_BASE_URL}/users/me/key-backup`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (backupResp.ok) {
+          const backupData = await backupResp.json();
+          if (backupData.encrypted_private_key) {
+            keyRestored = await cryptoService.importPrivateKeyBackup(
+              backupData.encrypted_private_key,
+              password
+            );
+            if (keyRestored) {
+              console.log('✅ Cross-device key sync: private key restored from server backup');
+            } else {
+              console.warn('⚠️ Key backup found but could not be decrypted (possibly old backup or wrong password)');
+            }
+          }
+        }
+      } catch (backupErr) {
+        console.warn('Could not fetch key backup (non-critical):', backupErr);
+      }
 
-      // Create user object from API response with real public key
+      // ── Step 2: Get the active public key (restored or local) ──
+      const publicKeyBase64 = await cryptoService.getPublicKeyBase64();
+
+      // ── Step 3: Upload the public key to the server ──
+      // Always upload on fresh login so the server reflects the active key.
+      await uploadPublicKey(token, publicKeyBase64);
+
+      // ── Step 4: Create / update the encrypted key backup on the server ──
+      // If we just restored a backup we already have the latest; still re-upload
+      // to refresh it in case the password changed or the backup was missing.
+      try {
+        const encryptedBackup = await cryptoService.exportPrivateKeyBackup(password);
+        await fetch(`${API_BASE_URL}/users/me/key-backup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ encrypted_private_key: encryptedBackup }),
+        });
+        console.log('✅ Key backup stored/refreshed on server');
+      } catch (backupErr) {
+        console.warn('Could not save key backup (non-critical):', backupErr);
+      }
+
+      // ── Step 5: Build user object and finish login ──
       const user: User = {
-        id: response.user.id,
+        id: userId,
         username: response.user.username,
         email: response.user.email,
         fullName: response.user.full_name,
@@ -312,22 +349,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: response.user.role || 'user',
       };
 
-      // Store token and user data
       storeToken(token, user);
+      setState({ user, isAuthenticated: true, isLoading: false });
 
-      setState({
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      
     } catch (apiError) {
       console.log('API login failed, trying demo users:', apiError);
-      
+
       // Fallback to demo users for development
       const normalizedEmail = email.toLowerCase();
       const demoUser = demoUsers[normalizedEmail];
-      
+
       if (demoUser && demoUser.password === password) {
         console.log('Demo user login successful');
         setState({
