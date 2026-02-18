@@ -5,6 +5,7 @@ import { ContactList } from './ContactList';
 import { ConnectionStatus } from './ConnectionStatus';
 import { Shield, Settings, LogOut, UserPlus, Crown, Users, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ interface SidebarProps {
 export function Sidebar({ onSelectContact }: SidebarProps = {}) {
   const { user, logout } = useAuth();
   const { selectGroup, selectedGroupId } = useChat();
+  const navigate = useNavigate();
   const [showInvitation, setShowInvitation] = useState(false);
   const [showManageUsers, setShowManageUsers] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -281,7 +283,7 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/settings')}>
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>

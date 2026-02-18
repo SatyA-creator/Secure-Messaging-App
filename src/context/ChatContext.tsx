@@ -85,7 +85,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         fullName: c.contact_full_name || c.contact_username || 'Unknown User',
         publicKey: c.contact_public_key || '',
         isOnline: c.is_online || false,
-        lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : new Date(),
+        lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : null,
         unreadCount: 0,
       }));
       
@@ -405,9 +405,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const handleUserOffline = (data: any) => {
         const userId = data.user_id;
         if (userId) {
-          console.log(`❌ User ${userId} went offline`);
+          // ✅ FIX: Use the server's timestamp for accurate last seen time
+          const lastSeenTime = data.timestamp ? new Date(data.timestamp) : new Date();
+          console.log(`❌ User ${userId} went offline at ${lastSeenTime.toISOString()}`);
           setContacts(prev =>
-            prev.map(c => c.id === userId ? { ...c, isOnline: false, lastSeen: new Date() } : c)
+            prev.map(c => c.id === userId ? { ...c, isOnline: false, lastSeen: lastSeenTime } : c)
           );
         }
       };
@@ -487,10 +489,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSelectedContactId(contactId);
     setSelectedGroupId(null);
 
+    if (!contactId) return;
+
     // Load messages from local IndexedDB
     try {
       const localMessages = await localStore.getConversation(contactId);
-      console.log(`Loaded ${localMessages.length} messages for conversation`);
+      console.log(`Loaded ${localMessages.length} messages from IndexedDB`);
+
+      // ✅ FIX: Also fetch server message history and merge so messages survive browser storage clears
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(
+          `${ENV.API_URL}/messages/conversation/${contactId}?current_user_id=${user?.id}`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (response.ok) {
+          const serverMessages: any[] = await response.json();
+          const localIds = new Set(localMessages.map(m => m.id));
+          const newFromServer = serverMessages.filter(m => !localIds.has(String(m.id)));
+          if (newFromServer.length > 0) {
+            console.log(`Recovering ${newFromServer.length} messages from server history`);
+            for (const sm of newFromServer) {
+              await localStore.saveMessage({
+                id: String(sm.id),
+                conversationId: contactId,
+                from: String(sm.sender_id),
+                to: String(sm.recipient_id),
+                timestamp: sm.created_at,
+                content: sm.encrypted_content,
+                synced: true,
+                hasMedia: sm.has_media || false,
+                mediaAttachments: sm.media_attachments || [],
+                mediaUrls: sm.media_attachments?.map((m: any) => m.file_url) || [],
+              });
+            }
+            // Reload from IndexedDB after merging server messages
+            const merged = await localStore.getConversation(contactId);
+            console.log(`Total after merge: ${merged.length} messages`);
+            localMessages.length = 0;
+            merged.forEach(m => localMessages.push(m));
+          }
+        }
+      } catch (serverErr) {
+        console.warn('Could not load server message history (using local only):', serverErr);
+      }
 
       // Decrypt any messages that are still stored as encrypted envelopes
       const transformedMessages: Message[] = await Promise.all(localMessages.map(async (msg) => {
@@ -534,7 +576,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
       }));
     } catch (error) {
-      console.error('Failed to load from local storage:', error);
+      console.error('Failed to load conversation:', error);
 
       setConversations(prev => ({
         ...prev,

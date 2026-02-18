@@ -168,8 +168,10 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
                 <span className="text-primary font-medium">typing...</span>
               ) : selectedContact.isOnline ? (
                 'Online'
-              ) : (
+              ) : selectedContact.lastSeen ? (
                 `Last seen ${formatDistanceToNow(selectedContact.lastSeen, { addSuffix: true })}`
+              ) : (
+                'Offline'
               )}
             </p>
           </div>

@@ -6,7 +6,7 @@ import logging
 import json
 import asyncio
 from typing import Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 from app.config import settings
@@ -451,17 +451,34 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
         except Exception as e:
             logger.error(f"❌ WebSocket error for user {user_id}: {str(e)}")
             manager.disconnect(user_id)
-    
+
     except Exception as e:
         logger.error(f"❌ WebSocket authentication error: {str(e)}")
         await websocket.close(code=1008)
-    
+
     finally:
         manager.disconnect(user_id)
+        # ✅ Update last_seen in DB when user disconnects
+        now_utc = datetime.now(timezone.utc)
+        try:
+            from app.database import SessionLocal
+            from app.models.user import User as UserModel
+            from uuid import UUID
+            _db = SessionLocal()
+            try:
+                _user = _db.query(UserModel).filter(UserModel.id == UUID(user_id)).first()
+                if _user:
+                    _user.last_seen = now_utc
+                    _db.commit()
+                    logger.info(f"✅ Updated last_seen for user {user_id}")
+            finally:
+                _db.close()
+        except Exception as e:
+            logger.error(f"❌ Failed to update last_seen for {user_id}: {e}")
         await manager.broadcast({
             "type": "user_offline",
             "user_id": user_id,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": now_utc.isoformat()
         })
 
 

@@ -50,7 +50,7 @@ export interface ConversationMeta {
     status?: string;
   }>>;
   lastMessage?: Date;
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
 }
 
 // Dexie database class
@@ -75,7 +75,19 @@ const db = new LocalMessagingDB();
 // API functions
 export class LocalStore {
   
+  // Message retention period in days
+  private readonly RETENTION_DAYS = 30;
+  
   /**
+   * Save a message to local storage with auto-expiration
+   */
+  async saveMessage(message: Omit<LocalMessage, 'createdAt' | 'expiresAt'>): Promise<LocalMessage> {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + this.RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    
+    const msg: LocalMessage = {
+      ...message,
+   **
    * Save a message to local storage
    */
   async saveMessage(message: Omit<LocalMessage, 'createdAt'>): Promise<LocalMessage> {
@@ -88,18 +100,12 @@ export class LocalStore {
     const existing = await db.messages.get(msg.id);
     if (existing) {
       console.log('⚠️ Message already exists in local storage, updating:', msg.id);
-      await db.messages.update(msg.id, msg);
-      return msg;
-    }
-    
-    await db.messages.add(msg);
-    
-    // Update conversation metadata
-    await this.updateConversationMeta(message.conversationId, {
-      lastMessage: new Date()
-    });
-    
-    console.log('💾 Message saved locally:', msg.id);
+      await db.messages.update(msg.id, {
+        content: msg.content,
+        synced: msg.synced,
+        hasMedia: msg.hasMedia,
+        mediaAttachments: msg.mediaAttachments,
+        mediaUrls: msg.mediaUrlsd locally:', msg.id);
     return msg;
   }
 
@@ -181,7 +187,15 @@ export class LocalStore {
   }
 
   /**
-   * Get database statistics
+   * Clean up expired messages (older than 30 days)
+   * Returns the number of messages deleted
+   */
+  async cleanupExpiredMessages(): Promise<number> {
+    const now = new Date();
+    
+    // Find all expired messages
+    const expiredMessages = await db.messages
+     Get database statistics
    */
   async getStats() {
     const messageCount = await db.messages.count();
@@ -197,4 +211,4 @@ export class LocalStore {
 }
 
 // Export singleton instance
-export const localStore = new LocalStore();
+export const localStore = new LocalStore

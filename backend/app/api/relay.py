@@ -64,7 +64,7 @@ async def send_relay_message(
             detail="Recipient not found"
         )
     
-    # Queue message in relay service (temporary storage only)
+    # Queue message in relay service (temporary storage for fast delivery)
     relay_msg = relay_service.queue_message(
         sender_id=sender_id,
         recipient_id=recipient_id,
@@ -78,7 +78,30 @@ async def send_relay_message(
         media_refs=message.media_refs,
         ttl_days=message.ttl_days
     )
-    
+
+    # ✅ FIX: Also persist message to DB so it survives server restarts
+    # Messages are stored encrypted — server cannot read content
+    try:
+        from app.models.message import Message as DBMessage
+        import uuid as uuid_module
+        db_message = DBMessage(
+            id=uuid_module.UUID(relay_msg.id),
+            sender_id=uuid_module.UUID(sender_id),
+            recipient_id=uuid_module.UUID(recipient_id),
+            encrypted_content=message.encrypted_content,
+            encrypted_session_key=message.encrypted_session_key,
+            crypto_version=message.crypto_version,
+            encryption_algorithm=message.encryption_algorithm,
+            kdf_algorithm=message.kdf_algorithm,
+            has_media=message.has_media,
+        )
+        db.add(db_message)
+        db.commit()
+        print(f"✅ Message {relay_msg.id} persisted to DB")
+    except Exception as db_err:
+        db.rollback()
+        print(f"⚠️ DB persist failed (relay still works): {db_err}")
+
     # ✅ FIX: Check WebSocket manager as source of truth for online status
     print(f"🔍 Checking if recipient {recipient_id} is online...")
     print(f"   Online users in relay service: {len(relay_service._online_users)}")

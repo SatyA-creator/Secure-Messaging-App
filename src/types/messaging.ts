@@ -6,7 +6,7 @@ export interface User {
   avatarUrl?: string;
   publicKey: string;
   isOnline: boolean;
-  lastSeen: Date;
+  lastSeen: Date | null;
   role?: 'admin' | 'user';
 }
 

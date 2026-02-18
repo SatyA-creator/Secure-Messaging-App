@@ -6,7 +6,7 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.models.user import User
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.config import settings
 import base64
 import uuid
@@ -159,7 +159,11 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
     access_token = create_access_token(
         data={"sub": str(db_user.id)}, expires_delta=access_token_expires
     )
-    
+
+    # ✅ Update last_seen on login
+    db_user.last_seen = datetime.now(timezone.utc)
+    db.commit()
+
     # Get active public key from public_keys array
     public_key_str = get_active_public_key(db_user.public_keys) if db_user.public_keys else None
 

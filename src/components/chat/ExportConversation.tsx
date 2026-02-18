@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Upload } from 'lucide-react';
+import { Download, FileText, Upload, Loader2 } from 'lucide-react';
 import { localStore } from '@/lib/localStore';
-import { 
-  conversationToMarkdown, 
-  downloadMarkdown, 
+import { useChat } from '@/context/ChatContext';
+import {
+  conversationToMarkdown,
+  downloadMarkdown,
   exportConversationByDate
 } from '@/lib/markdownSerializer';
 import {
@@ -23,7 +24,9 @@ interface ExportConversationProps {
 }
 
 export function ExportConversation({ contactId, contactName }: ExportConversationProps) {
+  const { selectContact } = useChat();
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,54 +67,56 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsImporting(true);
+    setImportStatus(null);
+
     try {
-      setImportStatus(null);
       const text = await file.text();
-      
+
       console.log('📥 Starting markdown import...');
       console.log('📄 File content length:', text.length);
-      
+
       // Split by message boundaries (matching the export format: \n\n---\n\n)
       const messageSections = text.split(/\n\n---\n\n/);
       console.log(`📦 Found ${messageSections.length} message sections`);
-      
+
       let imported = 0;
       let skipped = 0;
-      
+
       for (const section of messageSections) {
         const trimmedSection = section.trim();
-        
+
         // Skip empty sections or header
         if (!trimmedSection || trimmedSection.includes('# Conversation Export')) {
           console.log('⏭️ Skipping header or empty section');
           continue;
         }
-        
+
         // Ensure the section has proper frontmatter delimiters
-        const messageMarkdown = trimmedSection.startsWith('---') 
-          ? trimmedSection 
+        const messageMarkdown = trimmedSection.startsWith('---')
+          ? trimmedSection
           : `---\n${trimmedSection}`;
-        
+
         try {
           // Use the existing markdownToMessage parser
           const { markdownToMessage } = await import('@/lib/markdownSerializer');
           const parsedMsg = markdownToMessage(messageMarkdown);
-          
+
           // ⚠️ SECURITY: Only log metadata, not content
           console.log(`📨 Parsed message ${parsedMsg.id}`);
-          
+
           if (!parsedMsg.id || !parsedMsg.from || !parsedMsg.to) {
             console.warn('⚠️ Skipping invalid message - missing required fields:', parsedMsg);
             skipped++;
             continue;
           }
-          
+
           // Clean content - remove "encrypted:" prefix if present
           let cleanContent = parsedMsg.content || '';
           if (cleanContent.startsWith('encrypted:')) {
             cleanContent = cleanContent.substring(10);
           }
-          
+
           await localStore.saveMessage({
             id: parsedMsg.id,
             conversationId: contactId,
@@ -126,7 +131,7 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
             kdfAlgorithm: parsedMsg.kdfAlgorithm,
             signatures: parsedMsg.signatures
           });
-          
+
           imported++;
           console.log(`✅ Imported message ${parsedMsg.id} (${imported} total)`);
         } catch (error) {
@@ -135,24 +140,28 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
           skipped++;
         }
       }
-      
-      setImportStatus({
-        type: imported > 0 ? 'success' : 'error',
-        message: imported > 0 
-          ? `Imported ${imported} messages (${skipped} skipped/duplicates)` 
-          : `No messages imported. ${skipped} skipped. Please check the file format.`
-      });
-      
+
       console.log(`✅ Import complete: ${imported} imported, ${skipped} skipped`);
-      
-      // Only reload if messages were actually imported
+
       if (imported > 0) {
-        setTimeout(() => {
-          // Refresh the page to reload messages from IndexedDB
-          window.location.reload();
-        }, 2000);
+        setImportStatus({
+          type: 'success',
+          message: `Imported ${imported} messages (${skipped} skipped/duplicates). Refreshing chat...`
+        });
+        // ✅ FIX: Reload messages from IndexedDB without a full page refresh
+        // This avoids auth reset and the login redirect
+        await selectContact(contactId);
+        setImportStatus({
+          type: 'success',
+          message: `Successfully imported ${imported} messages (${skipped} skipped/duplicates).`
+        });
+      } else {
+        setImportStatus({
+          type: 'error',
+          message: `No messages imported. ${skipped} skipped. Please check the file format.`
+        });
       }
-      
+
     } catch (error) {
       console.error('❌ Import failed:', error);
       setImportStatus({
@@ -160,6 +169,7 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
         message: error instanceof Error ? error.message : 'Import failed'
       });
     } finally {
+      setIsImporting(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -243,9 +253,19 @@ export function ExportConversation({ contactId, contactName }: ExportConversatio
                 variant="outline"
                 size="sm"
                 className="w-full"
+                disabled={isImporting}
               >
-                <Upload className="w-4 h-4 mr-2" />
-                Import from File
+                {isImporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Importing messages...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import from File
+                  </>
+                )}
               </Button>
               {importStatus && (
                 <Alert variant={importStatus.type === 'success' ? 'default' : 'destructive'}>
