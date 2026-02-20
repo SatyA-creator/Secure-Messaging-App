@@ -171,7 +171,6 @@ const demoUsers: Record<string, { user: User; password: string }> = {
       fullName: 'Alice Chen',
       publicKey: 'demo-public-key-alice',
       isOnline: true,
-      lastSeen: new Date(),
     },
   },
   'bob@secure.chat': {
@@ -183,7 +182,6 @@ const demoUsers: Record<string, { user: User; password: string }> = {
       fullName: 'Bob Wilson',
       publicKey: 'demo-public-key-bob',
       isOnline: true,
-      lastSeen: new Date(),
     },
   },
 };
@@ -250,7 +248,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             publicKey: publicKeyBase64,
             role: roleToUse,
             isOnline: true,
-            lastSeen: new Date(),
           };
 
           setState({
@@ -345,7 +342,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fullName: response.user.full_name,
         publicKey: publicKeyBase64,
         isOnline: true,
-        lastSeen: new Date(),
         role: response.user.role || 'user',
       };
 
@@ -403,7 +399,6 @@ const register = useCallback(async (email: string, username: string, password: s
       fullName: userData.full_name,
       publicKey: publicKeyBase64,
       isOnline: true,
-      lastSeen: new Date(),
       role: userData.role || 'user',
     };
 

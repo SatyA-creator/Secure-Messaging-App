@@ -83,8 +83,7 @@ async def get_contacts(user_id: uuid.UUID = Query(...), db: Session = Depends(ge
             contact_email=user.email,
             contact_username=user.username,
             contact_full_name=user.full_name,
-            contact_public_key=get_active_public_key(user.public_keys) if user.public_keys else None,
-            contact_last_seen=user.last_seen
+            contact_public_key=get_active_public_key(user.public_keys) if user.public_keys else None
         ))
     
     print(f"   Returning {len(results)} contact responses")
@@ -126,8 +125,7 @@ async def get_all_users(user_id: uuid.UUID = Query(...), db: Session = Depends(g
             contact_email=user.email,
             contact_username=user.username,
             contact_full_name=user.full_name,
-            contact_public_key=get_active_public_key(user.public_keys) if user.public_keys else None,
-            contact_last_seen=user.last_seen
+            contact_public_key=get_active_public_key(user.public_keys) if user.public_keys else None
         ))
     
     return results

@@ -6,7 +6,6 @@ import { MessageInput } from './MessageInput';
 import { Lock, Shield, MoreVertical, Phone, Video, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
 import GroupChat from '../GroupChat';
 import api from '@/config/api';
 import { ExportConversation } from './ExportConversation';
@@ -207,9 +206,7 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
               {selectedContact.isTyping ? (
                 <span className="text-primary font-medium">typing...</span>
               ) : selectedContact.isOnline ? (
-                'Online'
-              ) : selectedContact.lastSeen ? (
-                `Last seen ${formatDistanceToNow(selectedContact.lastSeen, { addSuffix: true })}`
+                <span className="text-green-500 font-medium">Online</span>
               ) : (
                 'Offline'
               )}

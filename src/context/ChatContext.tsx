@@ -99,7 +99,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           fullName: c.contact_full_name || c.contact_username || 'Unknown User',
           publicKey: c.contact_public_key || '',
           isOnline: c.is_online || false,
-          lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : null,
           unreadCount: 0,
         };
       });
@@ -113,12 +112,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return apiContacts.map(c => {
           const existing = existingMap.get(c.id);
           const isOnline = onlineUsersRef.current.has(c.id) || (existing?.isOnline ?? false);
-          // Always prefer the WS-updated lastSeen over the stale DB value:
-          // - online: existing.lastSeen = new Date() set by handleUserOnline
-          // - offline: existing.lastSeen = server timestamp set by handleUserOffline
-          // Only fall back to DB value when we have no WS-set value yet.
-          const lastSeen = existing?.lastSeen ?? c.lastSeen;
-          return { ...c, isOnline, lastSeen, unreadCount: existing?.unreadCount ?? c.unreadCount };
+          return { ...c, isOnline, unreadCount: existing?.unreadCount ?? c.unreadCount };
         });
       });
 
@@ -370,7 +364,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             fullName: data.full_name || data.username || 'Unknown User',
             publicKey: data.public_key || '',
             isOnline: data.is_online || false,
-            lastSeen: new Date(),
             unreadCount: 0,
           };
           
@@ -464,7 +457,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           // Persist in ref so fetchContactsFromAPI picks it up even if it runs late
           onlineUsersRef.current.add(userId);
           setContacts(prev =>
-            prev.map(c => c.id === userId ? { ...c, isOnline: true, lastSeen: new Date() } : c)
+            prev.map(c => c.id === userId ? { ...c, isOnline: true } : c)
           );
         }
       };
@@ -472,12 +465,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const handleUserOffline = (data: any) => {
         const userId = data.user_id;
         if (userId) {
-          const lastSeenTime = data.timestamp ? new Date(data.timestamp) : new Date();
-          console.log(`❌ User ${userId} went offline at ${lastSeenTime.toISOString()}`);
+          console.log(`❌ User ${userId} went offline`);
           // Remove from ref so contacts that reload later show the correct offline state
           onlineUsersRef.current.delete(userId);
           setContacts(prev =>
-            prev.map(c => c.id === userId ? { ...c, isOnline: false, lastSeen: lastSeenTime } : c)
+            prev.map(c => c.id === userId ? { ...c, isOnline: false } : c)
           );
         }
       };

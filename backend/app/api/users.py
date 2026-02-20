@@ -69,8 +69,7 @@ async def get_user_by_id(
         "username": user.username,
         "full_name": user.full_name,
         "public_key": public_key,
-        "is_active": user.is_active,
-        "last_seen": user.last_seen
+        "is_active": user.is_active
     }
 
 @router.get("/search", response_model=List[UserResponse])
