@@ -40,8 +40,15 @@ async def send_message(message: MessageCreate, db: Session = Depends(get_db)):
         recipient_id=db_message.recipient_id,
         encrypted_content=db_message.encrypted_content,
         encrypted_session_key=db_message.encrypted_session_key,
+        sender_encrypted_content=db_message.sender_encrypted_content,
+        crypto_version=db_message.crypto_version or "v1",
+        encryption_algorithm=db_message.encryption_algorithm or "ECDH-AES256-GCM",
+        kdf_algorithm=db_message.kdf_algorithm or "HKDF-SHA256",
+        signatures=db_message.signatures,
         created_at=db_message.created_at,
-        is_read=db_message.is_read
+        is_read=db_message.is_read,
+        has_media=db_message.has_media,
+        media_attachments=[]
     )
 
 @router.get("/conversation/{other_user_id}", response_model=List[MessageResponse])
@@ -101,6 +108,10 @@ async def get_conversation(
             encrypted_content=msg.encrypted_content,
             encrypted_session_key=msg.encrypted_session_key,
             sender_encrypted_content=msg.sender_encrypted_content,
+            crypto_version=msg.crypto_version or "v1",
+            encryption_algorithm=msg.encryption_algorithm or "ECDH-AES256-GCM",
+            kdf_algorithm=msg.kdf_algorithm or "HKDF-SHA256",
+            signatures=msg.signatures,
             created_at=msg.created_at,
             is_read=msg.is_read,
             has_media=len(media) > 0,

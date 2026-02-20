@@ -15,9 +15,23 @@ from app.models.message import Message
 router = APIRouter()
 
 # Configuration
-# Use /tmp for Render deployment (ephemeral but better than ./uploads)
+# ⚠️ WARNING: Using /tmp for production is EPHEMERAL - files are deleted on server restart!
+# For production deployments on Render, you MUST use persistent storage like:
+#   - AWS S3 (recommended)
+#   - Cloudinary (good for images/videos)
+#   - Render Disks (paid feature)
 UPLOAD_DIR = Path("/tmp/uploads") if os.getenv("ENVIRONMENT") == "production" else Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
+
+# Print warning on startup if using ephemeral storage
+if os.getenv("ENVIRONMENT") == "production":
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("=" * 80)
+    logger.warning("⚠️  CRITICAL: Using EPHEMERAL storage (/tmp) for media files!")
+    logger.warning("⚠️  All uploaded files will be DELETED when the server restarts!")
+    logger.warning("⚠️  For persistent storage, implement AWS S3, Cloudinary, or Render Disks.")
+    logger.warning("=" * 80)
 
 # Allowed file types
 ALLOWED_EXTENSIONS = {
