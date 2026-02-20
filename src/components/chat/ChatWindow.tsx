@@ -25,6 +25,46 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
   const selectedContact = contacts.find(c => c.id === selectedContactId);
   const conversation = selectedContactId ? conversations[selectedContactId] : null;
 
+  // ✅ Add debug helper for media downloads
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).debugMediaDownload = (messageId?: string) => {
+        console.log('🔍 Media Download Debugger');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        if (messageId) {
+          const msg = conversation?.messages.find(m => m.id === messageId);
+          if (msg && msg.mediaAttachments) {
+            console.log('📨 Message:', messageId);
+            console.log('📎 Attachments:', msg.mediaAttachments);
+            msg.mediaAttachments.forEach((media, idx) => {
+              console.log(`  [${idx}] ${media.file_name}`);
+              console.log(`      URL: ${media.file_url}`);
+              console.log(`      Type: ${media.file_type}`);
+              console.log(`      Category: ${media.category}`);
+            });
+          } else {
+            console.log('❌ Message not found or has no media');
+          }
+        } else {
+          console.log('📊 All messages with media:');
+          conversation?.messages.forEach((msg, idx) => {
+            if (msg.mediaAttachments && msg.mediaAttachments.length > 0) {
+              console.log(`  Message ${idx + 1} (${msg.id}):`);
+              msg.mediaAttachments.forEach(media => {
+                console.log(`    - ${media.file_name} (${media.file_url})`);
+              });
+            }
+          });
+        }
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('💡 Usage: window.debugMediaDownload("message-id")');
+      };
+      console.log('💡 Debug helper available: window.debugMediaDownload()');
+    }
+  }, [conversation]);
+
   // Load group details when a group is selected
   useEffect(() => {
     if (selectedGroupId) {

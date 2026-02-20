@@ -101,12 +101,32 @@ async def upload_media(
 async def get_media_file(filename: str):
     """Serve uploaded media file"""
     from fastapi.responses import FileResponse
+    import mimetypes
     
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        print(f"❌ File not found: {file_path}")
+        print(f"📁 Upload directory: {UPLOAD_DIR}")
+        print(f"📋 Files in directory: {list(UPLOAD_DIR.glob('*')) if UPLOAD_DIR.exists() else 'Directory does not exist'}")
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
     
-    return FileResponse(file_path)
+    # Get MIME type
+    mime_type, _ = mimetypes.guess_type(str(file_path))
+    if mime_type is None:
+        mime_type = "application/octet-stream"
+    
+    print(f"✅ Serving file: {filename} ({mime_type})")
+    
+    return FileResponse(
+        file_path,
+        media_type=mime_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
 
 @router.get("/message/{message_id}")
 async def get_message_media(

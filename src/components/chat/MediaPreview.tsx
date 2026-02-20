@@ -32,13 +32,36 @@ export function MediaPreview({ media }: MediaPreviewProps) {
     }
   };
 
-  const handleDownload = (url: string, filename: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      console.log('🔽 Downloading file:', filename);
+      console.log('📍 URL:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+      console.log('✅ Download complete:', filename);
+    } catch (error) {
+      console.error('❌ Download failed:', error);
+      alert(`Failed to download ${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   return (

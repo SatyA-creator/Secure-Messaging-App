@@ -47,14 +47,37 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                   ? cleanUrl 
                   : `${ENV.API_URL}${cleanUrl}`;
                 
-                const handleDownload = (e: React.MouseEvent) => {
+                const handleDownload = async (e: React.MouseEvent) => {
                   e.stopPropagation();
-                  const a = document.createElement('a');
-                  a.href = fullUrl;
-                  a.download = media.file_name;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
+                  try {
+                    console.log('🔽 Downloading file:', media.file_name);
+                    console.log('📍 URL:', fullUrl);
+                    
+                    const response = await fetch(fullUrl, {
+                      method: 'GET',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                      },
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = media.file_name;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    console.log('✅ Download complete:', media.file_name);
+                  } catch (error) {
+                    console.error('❌ Download failed:', error);
+                    alert(`Failed to download ${media.file_name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  }
                 };
                 
                 if (media.category === 'image') {
@@ -133,14 +156,37 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                 const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(mediaUrl);
                 const fileName = mediaUrl.split('/').pop() || 'file';
                 
-                const handleDownload = (e: React.MouseEvent) => {
+                const handleDownload = async (e: React.MouseEvent) => {
                   e.stopPropagation();
-                  const a = document.createElement('a');
-                  a.href = fullUrl;
-                  a.download = fileName;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
+                  try {
+                    console.log('🔽 Downloading file:', fileName);
+                    console.log('📍 URL:', fullUrl);
+                    
+                    const response = await fetch(fullUrl, {
+                      method: 'GET',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                      },
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    console.log('✅ Download complete:', fileName);
+                  } catch (error) {
+                    console.error('❌ Download failed:', error);
+                    alert(`Failed to download ${fileName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  }
                 };
                 
                 if (isImage) {

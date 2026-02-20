@@ -202,6 +202,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                         encrypted_session_key = payload.get("encrypted_session_key")
                         media_ids = payload.get("media_ids", [])  # Get media IDs if any
                         
+                        # Initialize media_attachments list (must be before try block)
+                        media_attachments = []
+                        timestamp = datetime.now().isoformat()
+                        
                         if recipient_id:
                             try:
                                 from app.models.message import Message
@@ -236,6 +240,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                             ).first()
                                             if media:
                                                 media.message_id = msg_uuid
+                                                media_attachments.append({
+                                                    "id": str(media.id),
+                                                    "file_name": media.file_name,
+                                                    "file_type": media.file_type,
+                                                    "file_size": media.file_size,
+                                                    "file_url": media.file_url,
+                                                    "category": "image" if media.file_type.startswith("image/") else "document"
+                                                })
                                         db.commit()
                                         logger.info(f"📎 Linked {len(media_ids)} media files to message {msg_uuid}")
                                     
@@ -262,7 +274,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                     "message_id": message_id,
                                     "encrypted_content": encrypted_content,
                                     "encrypted_session_key": encrypted_session_key,
-                                    "timestamp": timestamp
+                                    "timestamp": timestamp,
+                                    "has_media": len(media_attachments) > 0,
+                                    "media_attachments": media_attachments
                                 }
                             )
 
