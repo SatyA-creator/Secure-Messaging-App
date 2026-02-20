@@ -42,13 +42,28 @@ export function MediaPreview({ media }: MediaPreviewProps) {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
         },
+        mode: 'cors',
+        credentials: 'include',
       });
       
+      console.log('📡 Response status:', response.status, response.statusText);
+      
       if (!response.ok) {
-        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        // Get error details
+        let errorDetail = `HTTP ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.detail || errorDetail;
+        } catch {
+          const errorText = await response.text();
+          errorDetail = errorText || errorDetail;
+        }
+        throw new Error(errorDetail);
       }
       
       const blob = await response.blob();
+      console.log('📦 Blob created:', blob.size, 'bytes');
+      
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
@@ -60,7 +75,24 @@ export function MediaPreview({ media }: MediaPreviewProps) {
       console.log('✅ Download complete:', filename);
     } catch (error) {
       console.error('❌ Download failed:', error);
-      alert(`Failed to download ${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      let userMessage = 'Download failed';
+      if (error instanceof Error) {
+        if (error.message.includes('404') || error.message.includes('not found')) {
+          userMessage = 'File not found on server. The file may have been deleted or the server was restarted (files in /tmp are temporary on Render).';
+        } else if (error.message.includes('Failed to fetch')) {
+          userMessage = 'Network error. Please check your connection and try again.';
+        } else {
+          userMessage = error.message;
+        }
+      }
+      
+      alert(`Failed to download ${filename}:\n\n${userMessage}`);
     }
   };
 

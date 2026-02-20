@@ -67,10 +67,22 @@ async def upload_media(
     file_path = UPLOAD_DIR / unique_filename
     
     # Save file
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
+        logger.info(f"📎 File uploaded: {unique_filename} ({file.content_type}, {file_size} bytes)")
+        logger.info(f"📁 Saved to: {file_path}")
+        
+        # ⚠️ WARNING for production deployments
+        if os.getenv("ENVIRONMENT") == "production":
+            logger.warning("⚠️ Files stored in /tmp will be DELETED on server restart!")
+            logger.warning("⚠️ For persistent storage, configure AWS S3 or similar cloud storage.")
     except Exception as e:
+        logger.error(f"❌ File upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     # Create media record
@@ -102,20 +114,36 @@ async def get_media_file(filename: str):
     """Serve uploaded media file"""
     from fastapi.responses import FileResponse
     import mimetypes
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"📥 File download request: {filename}")
+    logger.info(f"📁 Upload directory: {UPLOAD_DIR}")
+    logger.info(f"🔍 Looking for: {UPLOAD_DIR / filename}")
     
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
-        print(f"❌ File not found: {file_path}")
-        print(f"📁 Upload directory: {UPLOAD_DIR}")
-        print(f"📋 Files in directory: {list(UPLOAD_DIR.glob('*')) if UPLOAD_DIR.exists() else 'Directory does not exist'}")
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+        logger.error(f"❌ File not found: {file_path}")
+        logger.error(f"📁 Upload directory exists: {UPLOAD_DIR.exists()}")
+        if UPLOAD_DIR.exists():
+            files_in_dir = list(UPLOAD_DIR.glob('*'))
+            logger.error(f"📋 Files in directory ({len(files_in_dir)}): {[f.name for f in files_in_dir[:10]]}")
+        else:
+            logger.error("📋 Upload directory does not exist!")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"File not found: {filename}. On Render, files in /tmp are ephemeral and cleared on restart."
+        )
     
     # Get MIME type
     mime_type, _ = mimetypes.guess_type(str(file_path))
     if mime_type is None:
         mime_type = "application/octet-stream"
     
-    print(f"✅ Serving file: {filename} ({mime_type})")
+    logger.info(f"✅ Serving file: {filename} ({mime_type}, {file_path.stat().st_size} bytes)")
+    
+    # Use 'inline' for images/videos to display in browser, 'attachment' for documents
+    disposition = "inline" if mime_type and (mime_type.startswith('image/') or mime_type.startswith('video/')) else "attachment"
     
     return FileResponse(
         file_path,
@@ -124,7 +152,23 @@ async def get_media_file(filename: str):
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
-            "Content-Disposition": f'attachment; filename="{filename}"'
+            "Access-Control-Expose-Headers": "*",
+            "Content-Disposition": f'{disposition}; filename="{filename}"',
+            "Cache-Control": "public, max-age=31536000",
+        }
+    )
+
+@router.options("/files/{filename}")
+async def options_media_file(filename: str):
+    """Handle CORS preflight for media files"""
+    from fastapi.responses import Response
+    
+    return Response(
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Credentials": "true",
         }
     )
 

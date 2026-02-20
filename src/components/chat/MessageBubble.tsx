@@ -47,8 +47,21 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                   ? cleanUrl 
                   : `${ENV.API_URL}${cleanUrl}`;
                 
+                // Debug: Log media info
+                if (index === 0) {
+                  console.log('🖼️ Rendering media:', {
+                    file_name: media.file_name,
+                    category: media.category,
+                    file_url: media.file_url,
+                    cleanUrl,
+                    fullUrl,
+                    API_URL: ENV.API_URL
+                  });
+                }
+                
                 const handleDownload = async (e: React.MouseEvent) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   try {
                     console.log('🔽 Downloading file:', media.file_name);
                     console.log('📍 URL:', fullUrl);
@@ -58,13 +71,28 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                       headers: {
                         'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
                       },
+                      mode: 'cors',
+                      credentials: 'include',
                     });
                     
+                    console.log('📡 Response status:', response.status, response.statusText);
+                    
                     if (!response.ok) {
-                      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                      // Get error details
+                      let errorDetail = `HTTP ${response.status} ${response.statusText}`;
+                      try {
+                        const errorData = await response.json();
+                        errorDetail = errorData.detail || errorDetail;
+                      } catch {
+                        const errorText = await response.text();
+                        errorDetail = errorText || errorDetail;
+                      }
+                      throw new Error(errorDetail);
                     }
                     
                     const blob = await response.blob();
+                    console.log('📦 Blob created:', blob.size, 'bytes');
+                    
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -76,7 +104,24 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                     console.log('✅ Download complete:', media.file_name);
                   } catch (error) {
                     console.error('❌ Download failed:', error);
-                    alert(`Failed to download ${media.file_name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    console.error('❌ Error details:', {
+                      name: error instanceof Error ? error.name : 'Unknown',
+                      message: error instanceof Error ? error.message : String(error),
+                      stack: error instanceof Error ? error.stack : undefined
+                    });
+                    
+                    let userMessage = 'Download failed';
+                    if (error instanceof Error) {
+                      if (error.message.includes('404') || error.message.includes('not found')) {
+                        userMessage = 'File not found on server. The file may have been deleted or the server was restarted (files in /tmp are temporary on Render).';
+                      } else if (error.message.includes('Failed to fetch')) {
+                        userMessage = 'Network error. Please check your connection and try again.';
+                      } else {
+                        userMessage = error.message;
+                      }
+                    }
+                    
+                    alert(`Failed to download ${media.file_name}:\n\n${userMessage}`);
                   }
                 };
                 
@@ -89,6 +134,22 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                         className="rounded-lg max-w-full md:max-w-[400px] max-h-[500px] w-auto h-auto cursor-pointer hover:opacity-95 transition-opacity object-contain bg-black/5"
                         onClick={() => window.open(fullUrl, '_blank')}
                         loading="lazy"
+                        onError={(e) => {
+                          console.error('❌ Image failed to load:', {
+                            src: fullUrl,
+                            file_name: media.file_name,
+                            error: e
+                          });
+                          // Show a broken image placeholder
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400';
+                          errorDiv.innerHTML = `<p class="font-medium mb-1">⚠️ Image failed to load</p><p class="text-xs">${media.file_name}</p>`;
+                          (e.target as HTMLImageElement).parentElement?.appendChild(errorDiv);
+                        }}
+                        onLoad={() => {
+                          console.log('✅ Image loaded successfully:', media.file_name);
+                        }}
                       />
                       {/* Download button overlay (visible on hover) */}
                       <button
@@ -156,8 +217,21 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                 const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(mediaUrl);
                 const fileName = mediaUrl.split('/').pop() || 'file';
                 
+                // Debug: Log media info
+                if (index === 0) {
+                  console.log('🖼️ Rendering media (mediaUrls fallback):', {
+                    mediaUrl,
+                    cleanUrl,
+                    fullUrl,
+                    isImage,
+                    fileName,
+                    API_URL: ENV.API_URL
+                  });
+                }
+                
                 const handleDownload = async (e: React.MouseEvent) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   try {
                     console.log('🔽 Downloading file:', fileName);
                     console.log('📍 URL:', fullUrl);
@@ -167,13 +241,28 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                       headers: {
                         'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
                       },
+                      mode: 'cors',
+                      credentials: 'include',
                     });
                     
+                    console.log('📡 Response status:', response.status, response.statusText);
+                    
                     if (!response.ok) {
-                      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                      // Get error details
+                      let errorDetail = `HTTP ${response.status} ${response.statusText}`;
+                      try {
+                        const errorData = await response.json();
+                        errorDetail = errorData.detail || errorDetail;
+                      } catch {
+                        const errorText = await response.text();
+                        errorDetail = errorText || errorDetail;
+                      }
+                      throw new Error(errorDetail);
                     }
                     
                     const blob = await response.blob();
+                    console.log('📦 Blob created:', blob.size, 'bytes');
+                    
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -185,7 +274,24 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                     console.log('✅ Download complete:', fileName);
                   } catch (error) {
                     console.error('❌ Download failed:', error);
-                    alert(`Failed to download ${fileName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    console.error('❌ Error details:', {
+                      name: error instanceof Error ? error.name : 'Unknown',
+                      message: error instanceof Error ? error.message : String(error),
+                      stack: error instanceof Error ? error.stack : undefined
+                    });
+                    
+                    let userMessage = 'Download failed';
+                    if (error instanceof Error) {
+                      if (error.message.includes('404') || error.message.includes('not found')) {
+                        userMessage = 'File not found on server. The file may have been deleted or the server was restarted (files in /tmp are temporary on Render).';
+                      } else if (error.message.includes('Failed to fetch')) {
+                        userMessage = 'Network error. Please check your connection and try again.';
+                      } else {
+                        userMessage = error.message;
+                      }
+                    }
+                    
+                    alert(`Failed to download ${fileName}:\n\n${userMessage}`);
                   }
                 };
                 
@@ -198,6 +304,21 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                         className="rounded-lg max-w-full md:max-w-[400px] max-h-[500px] w-auto h-auto cursor-pointer hover:opacity-95 transition-opacity object-contain bg-black/5"
                         onClick={() => window.open(fullUrl, '_blank')}
                         loading="lazy"
+                        onError={(e) => {
+                          console.error('❌ Image failed to load (mediaUrls):', {
+                            src: fullUrl,
+                            fileName,
+                            error: e
+                          });
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400';
+                          errorDiv.innerHTML = `<p class="font-medium mb-1">⚠️ Image failed to load</p><p class="text-xs">${fileName}</p>`;
+                          (e.target as HTMLImageElement).parentElement?.appendChild(errorDiv);
+                        }}
+                        onLoad={() => {
+                          console.log('✅ Image loaded successfully (mediaUrls):', fileName);
+                        }}
                       />
                       {/* Download button overlay (visible on hover) */}
                       <button
