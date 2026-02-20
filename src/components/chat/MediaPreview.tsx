@@ -36,7 +36,9 @@ export function MediaPreview({ media }: MediaPreviewProps) {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
   };
 
   return (
@@ -48,26 +50,49 @@ export function MediaPreview({ media }: MediaPreviewProps) {
               <img
                 src={item.file_url}
                 alt={item.file_name}
-                className="max-w-xs max-h-64 rounded-lg cursor-pointer hover:opacity-90"
+                className="max-w-full md:max-w-sm max-h-96 rounded-lg cursor-pointer hover:opacity-95 transition-opacity object-contain bg-black/5"
                 onClick={() => window.open(item.file_url, '_blank')}
               />
+              {/* Download button overlay (visible on hover) */}
               <Button
                 size="icon"
                 variant="secondary"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
                 onClick={() => handleDownload(item.file_url, item.file_name)}
               >
                 <Download className="w-4 h-4" />
               </Button>
+              {/* Download button below image (always visible) */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={() => handleDownload(item.file_url, item.file_name)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Image
+              </Button>
             </div>
           ) : item.category === 'video' ? (
-            <video
-              src={item.file_url}
-              controls
-              className="max-w-xs max-h-64 rounded-lg"
-            />
+            <div className="relative">
+              <video
+                src={item.file_url}
+                controls
+                className="max-w-full md:max-w-sm max-h-96 rounded-lg bg-black/5"
+              />
+              {/* Download button below video */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={() => handleDownload(item.file_url, item.file_name)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Video
+              </Button>
+            </div>
           ) : (
-            <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg max-w-xs">
+            <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg max-w-sm">
               {getFileIcon(item.category)}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{item.file_name}</p>
@@ -77,6 +102,7 @@ export function MediaPreview({ media }: MediaPreviewProps) {
                 size="icon"
                 variant="ghost"
                 onClick={() => handleDownload(item.file_url, item.file_name)}
+                title="Download file"
               >
                 <Download className="w-4 h-4" />
               </Button>

@@ -47,30 +47,75 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                   ? cleanUrl 
                   : `${ENV.API_URL}${cleanUrl}`;
                 
+                const handleDownload = (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  const a = document.createElement('a');
+                  a.href = fullUrl;
+                  a.download = media.file_name;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                };
+                
                 if (media.category === 'image') {
                   return (
-                    <img
-                      key={media.id}
-                      src={fullUrl}
-                      alt={media.file_name}
-                      className="rounded-lg max-w-[300px] max-h-[400px] w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity object-cover"
-                      onClick={() => window.open(fullUrl, '_blank')}
-                      loading="lazy"
-                    />
+                    <div key={media.id} className="relative group">
+                      <img
+                        src={fullUrl}
+                        alt={media.file_name}
+                        className="rounded-lg max-w-full md:max-w-[400px] max-h-[500px] w-auto h-auto cursor-pointer hover:opacity-95 transition-opacity object-contain bg-black/5"
+                        onClick={() => window.open(fullUrl, '_blank')}
+                        loading="lazy"
+                      />
+                      {/* Download button overlay (visible on hover) */}
+                      <button
+                        onClick={handleDownload}
+                        className="absolute top-2 right-2 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
+                        title="Download image"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      {/* Download button below image (always visible) */}
+                      <button
+                        onClick={handleDownload}
+                        className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md bg-background/80 hover:bg-background border border-border/50 transition-colors"
+                        title={media.file_name}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="truncate">Download</span>
+                      </button>
+                    </div>
+                  );
+                } else if (media.file_type.startsWith('video/')) {
+                  return (
+                    <div key={media.id} className="relative">
+                      <video
+                        src={fullUrl}
+                        controls
+                        className="rounded-lg max-w-full md:max-w-[400px] max-h-[500px] w-auto h-auto bg-black/5"
+                      />
+                      {/* Download button below video */}
+                      <button
+                        onClick={handleDownload}
+                        className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md bg-background/80 hover:bg-background border border-border/50 transition-colors"
+                        title={media.file_name}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="truncate">Download Video</span>
+                      </button>
+                    </div>
                   );
                 } else {
                   return (
-                    <a
+                    <button
                       key={media.id}
-                      href={fullUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
+                      onClick={handleDownload}
+                      className="flex items-center gap-2 p-3 rounded-lg bg-background/50 hover:bg-background/70 transition-colors border border-border/30 w-full text-left"
                     >
-                      <FileText className="w-4 h-4" />
-                      <span className="text-sm truncate flex-1">{media.file_name}</span>
-                      <Download className="w-4 h-4" />
-                    </a>
+                      <FileText className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm truncate flex-1 font-medium">{media.file_name}</span>
+                      <Download className="w-4 h-4 flex-shrink-0 text-primary" />
+                    </button>
                   );
                 }
               })
@@ -85,32 +130,76 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                   ? cleanUrl 
                   : `${ENV.API_URL}${cleanUrl}`;
                 const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
+                const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(mediaUrl);
+                const fileName = mediaUrl.split('/').pop() || 'file';
+                
+                const handleDownload = (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  const a = document.createElement('a');
+                  a.href = fullUrl;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                };
                 
                 if (isImage) {
                   return (
-                    <img
-                      key={index}
-                      src={fullUrl}
-                      alt="Attachment"
-                      className="rounded-lg max-w-[300px] max-h-[400px] w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity object-cover"
-                      onClick={() => window.open(fullUrl, '_blank')}
-                      loading="lazy"
-                    />
+                    <div key={index} className="relative group">
+                      <img
+                        src={fullUrl}
+                        alt="Attachment"
+                        className="rounded-lg max-w-full md:max-w-[400px] max-h-[500px] w-auto h-auto cursor-pointer hover:opacity-95 transition-opacity object-contain bg-black/5"
+                        onClick={() => window.open(fullUrl, '_blank')}
+                        loading="lazy"
+                      />
+                      {/* Download button overlay (visible on hover) */}
+                      <button
+                        onClick={handleDownload}
+                        className="absolute top-2 right-2 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
+                        title="Download image"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      {/* Download button below image (always visible) */}
+                      <button
+                        onClick={handleDownload}
+                        className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md bg-background/80 hover:bg-background border border-border/50 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="truncate">Download</span>
+                      </button>
+                    </div>
+                  );
+                } else if (isVideo) {
+                  return (
+                    <div key={index} className="relative">
+                      <video
+                        src={fullUrl}
+                        controls
+                        className="rounded-lg max-w-full md:max-w-[400px] max-h-[500px] w-auto h-auto bg-black/5"
+                      />
+                      {/* Download button below video */}
+                      <button
+                        onClick={handleDownload}
+                        className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md bg-background/80 hover:bg-background border border-border/50 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="truncate">Download Video</span>
+                      </button>
+                    </div>
                   );
                 } else {
-                  const fileName = mediaUrl.split('/').pop() || 'file';
                   return (
-                    <a
+                    <button
                       key={index}
-                      href={fullUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-2 rounded bg-background/50 hover:bg-background/70 transition-colors"
+                      onClick={handleDownload}
+                      className="flex items-center gap-2 p-3 rounded-lg bg-background/50 hover:bg-background/70 transition-colors border border-border/30 w-full text-left"
                     >
-                      <FileText className="w-4 h-4" />
-                      <span className="text-sm truncate flex-1">{fileName}</span>
-                      <Download className="w-4 h-4" />
-                    </a>
+                      <FileText className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm truncate flex-1 font-medium">{fileName}</span>
+                      <Download className="w-4 h-4 flex-shrink-0 text-primary" />
+                    </button>
                   );
                 }
               })
