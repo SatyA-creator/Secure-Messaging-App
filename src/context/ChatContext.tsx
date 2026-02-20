@@ -518,7 +518,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       };
 
+      // ✅ Handle initial connection - mark all currently online users as online
+      const handleConnectionEstablished = (data: any) => {
+        const onlineUsers = data.online_users || [];
+        console.log(`🔗 Connection established. ${onlineUsers.length} users already online:`, onlineUsers);
+        
+        // Mark all currently online users in the ref
+        onlineUsers.forEach((userId: string) => {
+          onlineUsersRef.current.add(userId);
+        });
+        
+        // Update contacts to show online status
+        if (onlineUsers.length > 0) {
+          setContacts(prev =>
+            prev.map(c => onlineUsers.includes(c.id) ? { ...c, isOnline: true } : c)
+          );
+        }
+      };
+
       // Register all event handlers
+      wsRef.current.on('connection_established', handleConnectionEstablished);
       wsRef.current.on('new_message', handleNewMessage);
       wsRef.current.on('contact_added', handleContactAdded);
       wsRef.current.on('message_sent', handleMessageSent);
@@ -530,6 +549,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       return () => {
         if (wsRef.current) {
+          wsRef.current.off('connection_established', handleConnectionEstablished);
           wsRef.current.off('new_message', handleNewMessage);
           wsRef.current.off('contact_added', handleContactAdded);
           wsRef.current.off('message_sent', handleMessageSent);

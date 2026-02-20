@@ -171,19 +171,24 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
         await manager.connect(user_id, websocket)
         
         try:
-            # Send connection confirmation
+            # Get list of currently online users (before this connection)
+            online_users = list(manager.active_connections.keys())
+            logger.info(f"📋 Currently online users: {online_users}")
+            
+            # Send connection confirmation with list of online users
             await websocket.send_json({
                 "type": "connection_established",
                 "user_id": user_id,
+                "online_users": [uid for uid in online_users if uid != user_id],  # Exclude self
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Notify others that user came online
+            # Notify others that this user came online
             await manager.broadcast({
                 "type": "user_online",
                 "user_id": user_id,
                 "timestamp": datetime.now().isoformat()
-            })
+            }, exclude_user=user_id)  # Don't send to the user who just connected
             
             while True:
                 data = await websocket.receive_text()
