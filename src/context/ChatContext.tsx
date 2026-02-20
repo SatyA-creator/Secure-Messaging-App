@@ -82,16 +82,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.log(`Fetched ${contactsData.length} contacts from API`);
 
       // Transform API contacts to Contact type
-      const apiContacts: Contact[] = contactsData.map((c: any) => ({
-        id: c.contact_id,
-        username: c.contact_username || 'Unknown',
-        email: c.contact_email || '',
-        fullName: c.contact_full_name || c.contact_username || 'Unknown User',
-        publicKey: c.contact_public_key || '',
-        isOnline: c.is_online || false,
-        lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : null,
-        unreadCount: 0,
-      }));
+      const apiContacts: Contact[] = contactsData.map((c: any) => {
+        const hasValidKey = c.contact_public_key && 
+                           !c.contact_public_key.startsWith('api-') && 
+                           c.contact_public_key !== 'api-key' && 
+                           c.contact_public_key !== '';
+        
+        if (!hasValidKey) {
+          console.warn(`⚠️ Contact ${c.contact_username} (${c.contact_id}) has no valid encryption key`);
+        }
+        
+        return {
+          id: c.contact_id,
+          username: c.contact_username || 'Unknown',
+          email: c.contact_email || '',
+          fullName: c.contact_full_name || c.contact_username || 'Unknown User',
+          publicKey: c.contact_public_key || '',
+          isOnline: c.is_online || false,
+          lastSeen: c.contact_last_seen ? new Date(c.contact_last_seen) : null,
+          unreadCount: 0,
+        };
+      });
       
       // Merge API contacts with real-time online status from WebSocket events.
       // The API doesn't know who is currently online; WebSocket events do.
@@ -135,8 +146,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Refresh contacts (exposed to components)
   const refreshContacts = useCallback(async () => {
-    console.log('Refreshing contacts...');
+    console.log('🔄 Manually refreshing contacts and public keys...');
     await fetchContactsFromAPI();
+    console.log('✅ Contacts refresh complete');
   }, [fetchContactsFromAPI]);
 
   // ✅ CRITICAL FIX #1: Initialize WebSocket with JWT token
@@ -222,7 +234,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           try {
             if (cryptoService.isEncryptedEnvelope(encryptedContent)) {
               // Real ECDH + AES-256-GCM encrypted message
-              console.log(`🔓 Attempting to decrypt message ${messageId}`);
+              console.log(`🔓 Attempting to decrypt message ${messageId} from sender ${senderId}`);
+              
+              // Get our current public key for diagnostics
+              const myPublicKey = await cryptoService.getPublicKeyBase64();
+              console.log(`🔑 My current public key (first 50 chars): ${myPublicKey.substring(0, 50)}...`);
+              
               decryptedContent = await cryptoService.decryptMessage(encryptedContent);
               console.log(`✅ Successfully decrypted message ${messageId}`);
             } else if (typeof encryptedContent === 'string' && encryptedContent.startsWith('encrypted:')) {
@@ -235,17 +252,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             console.error(`❌ Failed to decrypt message ${messageId}:`, {
               error: decryptError.message,
               errorName: decryptError.name,
-              sender: senderId
+              sender: senderId,
+              errorStack: decryptError.stack
             });
             
-            // Check if it's a key mismatch
+            // Enhanced diagnostics for key mismatch
             if (decryptError.name === 'OperationError' || decryptError.message?.includes('operation failed')) {
-              console.error('💡 KEY MISMATCH: The sender encrypted this message with a public key that does not match your current private key.');
-              console.error('💡 This happens when you log in from different devices or browsers.');
-              console.error('💡 Solution: Ask the sender to refresh their contacts list and resend the message.');
+              console.error('🔴 KEY MISMATCH DETECTED 🔴');
+              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              console.error('The sender encrypted this message with a PUBLIC KEY that does');
+              console.error('NOT MATCH your current PRIVATE KEY.');
+              console.error('');
+              console.error('Why this happens:');
+              console.error('  • You logged in from a different browser/device');
+              console.error('  • Your private key backup was not restored');
+              console.error('  • You generated a NEW keypair on this device');
+              console.error('  • The sender still has your OLD public key');
+              console.error('');
+              console.error('Solutions:');
+              console.error('  1. Ask the sender to REFRESH their page/contacts');
+              console.error('  2. Have the sender resend the message');
+              console.error('  3. Or: Log out and log back in to restore key backup');
+              console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              
+              // Try to get sender's cached public key for comparison
+              const senderContact = contacts.find(c => c.id === senderId);
+              if (senderContact) {
+                console.error(`📋 Sender contact info: ID=${senderContact.id}, has public key: ${!!senderContact.publicKey}`);
+              }
             }
             
-            decryptedContent = '[Unable to decrypt message]';
+            decryptedContent = '[Unable to decrypt message - Key mismatch. Sender has outdated public key.]';
           }
 
           try {
@@ -641,6 +678,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchContactsFromAPI]);
 
+  // Listen for manual refresh requests from console
+  useEffect(() => {
+    const handleManualRefresh = () => {
+      console.log('📞 Received manual refresh request');
+      refreshContacts();
+    };
+    
+    window.addEventListener('manualRefreshContacts', handleManualRefresh);
+    return () => window.removeEventListener('manualRefreshContacts', handleManualRefresh);
+  }, [refreshContacts]);
+
   // Auto-select contact from invitation acceptance
   useEffect(() => {
     const autoSelectContactId = sessionStorage.getItem('autoSelectContact');
@@ -668,6 +716,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     let recipient = contacts.find(c => c.id === recipientId);
     
     // 🔐 CRITICAL FIX: Fetch fresh public key from server before encrypting
+    console.log(`🔑 Fetching fresh public key for recipient ${recipientId}...`);
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(`${ENV.API_URL}/users/${recipientId}`, {
@@ -681,8 +730,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const userData = await response.json();
         const freshPublicKey = userData.public_key;
         
+        console.log(`✅ Retrieved public key from server (first 50 chars): ${freshPublicKey?.substring(0, 50)}...`);
+        
         if (freshPublicKey && freshPublicKey !== recipient?.publicKey) {
-          console.log('🔄 Updated recipient public key with fresh value from server');
+          console.log('🔄 IMPORTANT: Recipient public key has CHANGED!');
+          console.log(`   Old key (first 30 chars): ${recipient?.publicKey?.substring(0, 30)}...`);
+          console.log(`   New key (first 30 chars): ${freshPublicKey.substring(0, 30)}...`);
           
           // Update the contact in state with fresh public key
           setContacts(prev => prev.map(c => 
@@ -691,16 +744,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           
           // Use the fresh public key
           recipient = { ...recipient, publicKey: freshPublicKey } as Contact;
+        } else if (freshPublicKey) {
+          console.log('✅ Public key unchanged - using cached value');
+        } else {
+          console.warn('⚠️ No public key found for recipient on server!');
         }
       } else {
-        console.warn('Could not fetch fresh public key, using cached value');
+        console.warn(`⚠️ Could not fetch fresh public key (HTTP ${response.status}), using cached value`);
       }
     } catch (error) {
-      console.warn('Error fetching fresh public key:', error);
+      console.error('❌ Error fetching fresh public key:', error);
+      console.warn('⚠️ Falling back to cached public key - message may not decrypt if key changed');
     }
     
     const recipientPublicKey = recipient?.publicKey;
     const hasRealKey = recipientPublicKey && !recipientPublicKey.startsWith('api-') && recipientPublicKey !== 'api-key' && recipientPublicKey !== '';
+
+    if (!hasRealKey) {
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.warn('⚠️  WARNING: Recipient has no valid encryption key!');
+      console.warn('    Message will NOT be end-to-end encrypted.');
+      console.warn('    Recipient may need to log in and generate keys.');
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
 
     // Encrypt the message content
     let encryptedContent: string;
@@ -959,4 +1025,17 @@ export function useChat() {
     throw new Error('useChat must be used within ChatProvider');
   }
   return context;
+}
+
+// ✅ Global helper for console-based debugging
+// Users can call window.refreshContacts() from browser console to manually refresh contact keys
+if (typeof window !== 'undefined') {
+  (window as any).refreshContactKeys = () => {
+    console.log('🔧 Manual contact refresh triggered from console');
+    console.log('💡 This will fetch fresh public keys from the server for all contacts');
+    // Dispatch a custom event that the ChatContext can listen to
+    window.dispatchEvent(new CustomEvent('manualRefreshContacts'));
+  };
+  console.log('💡 Helper function available: window.refreshContactKeys()');
+  console.log('   Call this if you receive "Unable to decrypt" messages');
 }
