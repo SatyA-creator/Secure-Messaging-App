@@ -33,10 +33,10 @@ export function MediaPreview({ media }: MediaPreviewProps) {
   };
 
   const handleDownload = async (url: string, filename: string) => {
+    console.log('🔽 Starting download:', filename);
+    console.log('📍 Download URL:', url);
+    
     try {
-      console.log('🔽 Downloading file:', filename);
-      console.log('📍 URL:', url);
-      
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -46,10 +46,9 @@ export function MediaPreview({ media }: MediaPreviewProps) {
         credentials: 'include',
       });
       
-      console.log('📡 Response status:', response.status, response.statusText);
+      console.log('📡 Response:', response.status, response.statusText);
       
       if (!response.ok) {
-        // Get error details
         let errorDetail = `HTTP ${response.status} ${response.statusText}`;
         try {
           const errorData = await response.json();
@@ -62,17 +61,25 @@ export function MediaPreview({ media }: MediaPreviewProps) {
       }
       
       const blob = await response.blob();
-      console.log('📦 Blob created:', blob.size, 'bytes');
+      console.log('📦 Blob created:', blob.size, 'bytes, type:', blob.type);
       
+      // Force download by creating a blob URL and triggering click
       const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(blobUrl);
-      document.body.removeChild(a);
-      console.log('✅ Download complete:', filename);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename; // Force download with original filename
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        console.log('✅ Download triggered:', filename);
+      }, 100);
+      
     } catch (error) {
       console.error('❌ Download failed:', error);
       console.error('❌ Error details:', {

@@ -62,10 +62,11 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                 const handleDownload = async (e: React.MouseEvent) => {
                   e.stopPropagation();
                   e.preventDefault();
+                  
+                  console.log('🔽 Starting download:', media.file_name);
+                  console.log('📍 Download URL:', fullUrl);
+                  
                   try {
-                    console.log('🔽 Downloading file:', media.file_name);
-                    console.log('📍 URL:', fullUrl);
-                    
                     const response = await fetch(fullUrl, {
                       method: 'GET',
                       headers: {
@@ -75,10 +76,9 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                       credentials: 'include',
                     });
                     
-                    console.log('📡 Response status:', response.status, response.statusText);
+                    console.log('📡 Response:', response.status, response.statusText);
                     
                     if (!response.ok) {
-                      // Get error details
                       let errorDetail = `HTTP ${response.status} ${response.statusText}`;
                       try {
                         const errorData = await response.json();
@@ -91,17 +91,25 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                     }
                     
                     const blob = await response.blob();
-                    console.log('📦 Blob created:', blob.size, 'bytes');
+                    console.log('📦 Blob created:', blob.size, 'bytes, type:', blob.type);
                     
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = media.file_name;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                    console.log('✅ Download complete:', media.file_name);
+                    // Force download by creating a blob URL and triggering click
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = media.file_name; // Force download with original filename
+                    link.style.display = 'none';
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // Cleanup
+                    setTimeout(() => {
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(blobUrl);
+                      console.log('✅ Download triggered:', media.file_name);
+                    }, 100);
+                    
                   } catch (error) {
                     console.error('❌ Download failed:', error);
                     console.error('❌ Error details:', {
@@ -232,10 +240,11 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                 const handleDownload = async (e: React.MouseEvent) => {
                   e.stopPropagation();
                   e.preventDefault();
+                  
+                  console.log('🔽 Starting download:', fileName);
+                  console.log('📍 Download URL:', fullUrl);
+                  
                   try {
-                    console.log('🔽 Downloading file:', fileName);
-                    console.log('📍 URL:', fullUrl);
-                    
                     const response = await fetch(fullUrl, {
                       method: 'GET',
                       headers: {
@@ -245,10 +254,9 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                       credentials: 'include',
                     });
                     
-                    console.log('📡 Response status:', response.status, response.statusText);
+                    console.log('📡 Response:', response.status, response.statusText);
                     
                     if (!response.ok) {
-                      // Get error details
                       let errorDetail = `HTTP ${response.status} ${response.statusText}`;
                       try {
                         const errorData = await response.json();
@@ -261,17 +269,25 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                     }
                     
                     const blob = await response.blob();
-                    console.log('📦 Blob created:', blob.size, 'bytes');
+                    console.log('📦 Blob created:', blob.size, 'bytes, type:', blob.type);
                     
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                    console.log('✅ Download complete:', fileName);
+                    // Force download by creating a blob URL and triggering click
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = fileName; // Force download with original filename
+                    link.style.display = 'none';
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // Cleanup
+                    setTimeout(() => {
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(blobUrl);
+                      console.log('✅ Download triggered:', fileName);
+                    }, 100);
+                    
                   } catch (error) {
                     console.error('❌ Download failed:', error);
                     console.error('❌ Error details:', {
