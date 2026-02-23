@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator, computed_field
 from typing import List
 import os
 from dotenv import load_dotenv
@@ -33,29 +34,16 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
     # CORS - Load from environment variable or use defaults
+    CORS_ORIGINS_STR: str = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://localhost:3000,http://localhost:8000,http://localhost:8080,http://localhost:8081,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:8000,http://127.0.0.1:8080,http://127.0.0.1:8081,https://secure-messaging-app-omega.vercel.app,https://*.vercel.app,capacitor://localhost"
+    )
+    
+    @computed_field
     @property
     def CORS_ORIGINS(self) -> List[str]:
-        # Try to get from environment variable first
-        cors_env = os.getenv("CORS_ORIGINS", "")
-        if cors_env:
-            return [origin.strip() for origin in cors_env.split(",")]
-        
-        # Default CORS origins
-        return [
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://localhost:8000",
-            "http://localhost:8080",
-            "http://localhost:8081",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:8000",
-            "http://127.0.0.1:8080",
-            "http://127.0.0.1:8081",
-            "https://secure-messaging-app-omega.vercel.app",
-            # Allow all Vercel preview deployments
-            "https://*.vercel.app",
-        ]
+        """Parse CORS_ORIGINS_STR into a list"""
+        return [origin.strip() for origin in self.CORS_ORIGINS_STR.split(",") if origin.strip()]
     
     # Security
     BCRYPT_SALT_ROUNDS: int = int(os.getenv("BCRYPT_SALT_ROUNDS", "10"))
@@ -84,6 +72,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = 'ignore'  # Ignore extra environment variables
 
 
 settings = Settings()
