@@ -114,24 +114,6 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation?.messages]);
 
-  // Send read confirmations for unread messages
-  useEffect(() => {
-    if (selectedContactId && conversation?.messages && user && wsRef.current) {
-      const unreadMessages = conversation.messages.filter(
-        msg => msg.senderId === selectedContactId && msg.status !== 'read'
-      );
-      
-      unreadMessages.forEach(msg => {
-        if (wsRef.current?.isConnected()) {
-          wsRef.current.send('read_confirmation', {
-            message_id: msg.id,
-            sender_id: msg.senderId
-          });
-        }
-      });
-    }
-  }, [selectedContactId, conversation?.messages, user]);
-
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (selectedContactId) {
       await sendMessage(selectedContactId, content, files);

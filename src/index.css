@@ -175,6 +175,22 @@
   }
 }
 
+/* -------------------------------------------------------
+   Ensure shadcn/ui Input components are never overridden
+   by third-party CSS resets (e.g. Ionic) on native builds.
+   ------------------------------------------------------- */
+input,
+textarea,
+select {
+  border: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  border-radius: var(--radius);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

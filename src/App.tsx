@@ -11,6 +11,8 @@ import Settings from "./pages/Settings";
 import { AcceptInvitation } from './pages/AcceptInvitation';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import WebSocketService from '@/lib/websocket';
 
 const queryClient = new QueryClient();
 
@@ -21,6 +23,10 @@ const App = () => {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
+    // Configure status bar
+    StatusBar.setStyle({ style: Style.Dark });
+    StatusBar.setBackgroundColor({ color: '#ffffff' });
+
     // Android hardware/gesture back button
     const backHandler = CapApp.addListener('backButton', ({ canGoBack }) => {
       if (canGoBack) window.history.back();
@@ -29,7 +35,8 @@ const App = () => {
 
     // Reconnect WebSocket when app resumes from background
     const resumeHandler = CapApp.addListener('resume', () => {
-      console.log('[App] resumed from background');
+      console.log('[App] resumed from background — reconnecting WebSocket');
+      WebSocketService.getInstance().reconnect();
     });
 
     return () => {

@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useKeyboard } from '@/hooks/useKeyboard';
 
 interface MessageInputProps {
   onSend: (content: string, files?: File[]) => void;
@@ -19,6 +20,7 @@ interface MessageInputProps {
 export function MessageInput({ onSend, disabled, recipientId, onTyping }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const keyboardHeight = useKeyboard();
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,7 +142,11 @@ export function MessageInput({ onSend, disabled, recipientId, onTyping }: Messag
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-2 md:p-4 border-t border-border bg-card/50">
+    <form
+      onSubmit={handleSubmit}
+      className="p-2 md:p-4 border-t border-border bg-card/50"
+      style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
+    >
       <input
         ref={fileInputRef}
         type="file"

@@ -1,12 +1,16 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import '@ionic/react/css/core.css';
-import '@ionic/react/css/normalize.css';
-import '@ionic/react/css/structure.css';
-import '@ionic/react/css/typography.css';
-import { setupIonicReact } from '@ionic/react';
+import { registerSW } from 'virtual:pwa-register';
 
-setupIonicReact({ mode: 'md' });
+// Register PWA service worker (no-op in dev mode)
+registerSW({
+  onNeedRefresh() {
+    console.log('[SW] New version available — will update on next reload');
+  },
+  onOfflineReady() {
+    console.log('[SW] App ready for offline use');
+  },
+});
 
 createRoot(document.getElementById("root")!).render(<App />);

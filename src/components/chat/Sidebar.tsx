@@ -296,98 +296,86 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
         </DropdownMenu>
       </div>
 
-      {/* Create Group Button - Available to All Users */}
-      <div className="p-3 md:p-4 border-b border-border">
-        <Button 
-          onClick={() => setShowCreateGroup(true)} 
-          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+      {/* Action Bar — Create Group + (admin) quick actions */}
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <Button
+          onClick={() => setShowCreateGroup(true)}
+          className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 h-8 text-xs"
           size="sm"
           disabled={isLoadingGroups}
         >
-          <Users className="w-4 h-4 mr-2" />
-          Create Group Chat
+          <Users className="w-3.5 h-3.5 mr-1.5" />
+          New Group
         </Button>
+        {isAdmin && (
+          <>
+            <Button
+              onClick={() => setShowInvitation(true)}
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0 flex-shrink-0"
+              title="Invite User"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              onClick={() => setShowManageUsers(true)}
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0 flex-shrink-0"
+              title="Manage Users"
+            >
+              <Users className="w-3.5 h-3.5" />
+            </Button>
+          </>
+        )}
       </div>
 
-      {/* Admin Action Buttons */}
-      {isAdmin && (
-        <div className="p-3 md:p-4 border-b border-border space-y-2">
-          <Button 
-            onClick={() => setShowInvitation(true)} 
-            className="w-full"
-            size="sm"
-            variant="default"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Invite New User
-          </Button>
-          <Button 
-            onClick={() => setShowManageUsers(true)} 
-            className="w-full"
-            size="sm"
-            variant="outline"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Manage Users
-          </Button>
-        </div>
-      )}
-
       {/* Groups List */}
-      <div className="p-3 md:p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase">
-            Group Chats ({groups.length})
+      <div className="px-3 py-2 border-b border-border">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Groups ({groups.length})
           </h3>
           {isLoadingGroups && (
-            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           )}
         </div>
-        
+
         {groups.length === 0 ? (
-          <div className="text-center py-6 px-2">
-            <Users className="w-12 h-12 mx-auto text-muted-foreground/30 mb-2" />
+          <div className="text-center py-3 px-2">
             <p className="text-xs text-muted-foreground">
-              {isLoadingGroups ? 'Loading groups...' : 'No groups yet. Create one to get started!'}
+              {isLoadingGroups ? 'Loading...' : 'No groups yet.'}
             </p>
           </div>
         ) : (
-          <div className="space-y-1 max-h-[300px] overflow-y-auto">
+          <div className="space-y-0.5 max-h-[200px] overflow-y-auto">
             {groups.map(group => (
               <div
                 key={group.id}
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-all duration-200 border border-transparent hover:border-border group/item"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent transition-colors group/item"
               >
                 <button
-                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
                   onClick={() => {
-                    console.log('👆 Selecting group:', group.name, '(', group.id, ')');
                     selectGroup(group.id);
                     if (onSelectContact) onSelectContact();
                   }}
                 >
-                  <div className="relative">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-md group-hover/item:shadow-lg transition-shadow">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
                       {group.name.charAt(0).toUpperCase()}
                     </div>
                     {group.is_admin && (
-                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center border-2 border-card">
-                        <Crown className="w-3 h-3 text-white" />
+                      <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center border border-card">
+                        <Crown className="w-2.5 h-2.5 text-white" />
                       </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate text-sm flex items-center gap-2">
-                      {group.name}
-                      {group.is_admin && (
-                        <Badge variant="secondary" className="h-4 px-1 text-[10px]">
-                          Admin
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      <span>{group.description || `${group.memberCount || 0} members`}</span>
+                    <div className="font-medium truncate text-sm">{group.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {group.memberCount || 0} members
                     </div>
                   </div>
                 </button>
@@ -395,11 +383,11 @@ export function Sidebar({ onSelectContact }: SidebarProps = {}) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 opacity-0 group-hover/item:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="h-7 w-7 opacity-0 group-hover/item:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 flex-shrink-0"
                     onClick={(e) => handleDeleteGroup(group.id, group.name, e)}
                     title="Delete group"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 )}
               </div>

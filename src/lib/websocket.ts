@@ -31,7 +31,7 @@ class WebSocketService {
     return new Promise((resolve, reject) => {
       try {
         // Remove trailing slash from WS_URL if present
-        const baseUrl = (import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8001').replace(/\/$/, '');
+        const baseUrl = (import.meta.env.VITE_WS_URL || 'ws://localhost:8000').replace(/\/$/, '');
         // ✅ CRITICAL: Pass token as query parameter
         const wsUrl = `${baseUrl}/ws/${userId}?token=${encodeURIComponent(token)}`;
         
@@ -214,6 +214,18 @@ class WebSocketService {
       this.ws = null;
       console.log('🔌 WebSocket disconnected');
     }
+  }
+
+  /**
+   * Called when the app resumes from background.
+   * Resets the reconnect counter and triggers an immediate reconnect
+   * if the socket is not already open.
+   */
+  public reconnect() {
+    if (this.ws?.readyState === WebSocket.OPEN) return; // already connected
+    console.log('🔄 [resume] Resetting reconnect counter and reconnecting...');
+    this.reconnectAttempts = 0;
+    this.handleReconnect();
   }
 
   public send(type: string, payload: unknown) {

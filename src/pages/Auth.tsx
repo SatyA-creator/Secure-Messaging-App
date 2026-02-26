@@ -20,7 +20,7 @@ export default function Auth() {
               <Shield className="w-7 h-7 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-bold">QuantChat</h1>
+              <h1 className="text-2xl font-display font-bold">QuChat</h1>
               <p className="text-sm text-muted-foreground">Secure Messaging</p>
             </div>
           </div>
@@ -56,16 +56,8 @@ export default function Auth() {
       </div>
 
       {/* Right Panel - Auth Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-background">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-8 bg-background">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-primary" />
-            </div>
-            <span className="text-xl font-display font-bold">SecureChat</span>
-          </div>
-
           {isLogin ? (
             <LoginForm onSwitchToRegister={() => setIsLogin(false)} />
           ) : (
