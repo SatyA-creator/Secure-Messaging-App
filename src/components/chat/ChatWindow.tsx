@@ -6,7 +6,7 @@ import { MessageInput } from './MessageInput';
 import { Lock, Shield, MoreVertical, Phone, Video, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import GroupChat from '../GroupChat';
+import GroupChat from './GroupChat';
 import api from '@/config/api';
 import { ExportConversation } from './ExportConversation';
 
@@ -132,7 +132,7 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
         </div>
       );
     }
-    return <GroupChat group={selectedGroup} currentUser={user} />;
+    return <GroupChat group={selectedGroup} currentUser={user} onBack={handleBackClick} />;
   }
 
   if (!selectedContact) {
