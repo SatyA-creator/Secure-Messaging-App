@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(python -m alembic:*)"
+      "Bash(python -m alembic:*)",
+      "Bash(node -e \"const https=require\\(''https''\\);const req=https.get\\(''https://secure-messaging-app-backend.onrender.com/health'',{timeout:15000},\\(r\\)=>{console.log\\(''STATUS:'',r.statusCode\\)}\\);req.on\\(''error'',\\(e\\)=>console.log\\(''ERROR:'',e.message\\)\\);req.on\\(''timeout'',\\(\\)=>console.log\\(''TIMEOUT''\\)\\)\")",
+      "Bash(npm run build:*)",
+      "Bash(npx cap sync:*)",
+      "Bash(dir \"F:\\\\Intersnhip project\\\\messsaging-app\\\\dist\" /b)"
     ]
   }
 }

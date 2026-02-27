@@ -38,11 +38,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Using a ref so both the WS handlers and fetchContactsFromAPI
   // share the same mutable set without stale-closure issues.
   const onlineUsersRef = useRef<Set<string>>(new Set());
+  // Mirror of selectedContactId as a ref so WS handlers (inside useEffect)
+  // can read the current value without stale closures.
+  const selectedContactIdRef = useRef<string | null>(null);
 
   const selectGroup = useCallback((groupId: string) => {
     console.log('ChatContext: Selecting group:', groupId);
     setSelectedGroupId(groupId);
     setSelectedContactId(null);
+    selectedContactIdRef.current = null;
   }, []);
 
   // Fetch contacts from API
@@ -344,6 +348,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               sender_id: senderId
             });
           }
+
+          // If this conversation is currently open, send read receipt immediately
+          if (wsRef.current?.isConnected() && selectedContactIdRef.current === senderId) {
+            wsRef.current.send('mark_read', { contact_id: senderId });
+          }
         }
       };
 
@@ -498,22 +507,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Listen for message read confirmations
       const handleMessageRead = (data: any) => {
         const messageId = data.message_id;
-        
+        const readerId = data.reader_id; // person who opened the conversation
+
         if (messageId) {
+          // Update a specific message to 'read'
           setConversations(prev => {
             const updated = { ...prev };
             Object.keys(updated).forEach(contactId => {
               updated[contactId] = {
                 ...updated[contactId],
                 messages: updated[contactId].messages.map(m =>
-                  m.id === messageId ? { 
-                    ...m, 
-                    status: 'read' as MessageStatus  // Update to 'read' status, don't change timestamp
-                  } : m
+                  m.id === messageId ? { ...m, status: 'read' as MessageStatus } : m
                 ),
               };
             });
             return updated;
+          });
+        } else if (readerId) {
+          // Recipient opened the conversation — mark ALL our sent messages in that
+          // conversation as 'read' (eye icon)
+          setConversations(prev => {
+            const conv = prev[readerId];
+            if (!conv) return prev;
+            return {
+              ...prev,
+              [readerId]: {
+                ...conv,
+                messages: conv.messages.map(m =>
+                  m.senderId === user.id ? { ...m, status: 'read' as MessageStatus } : m
+                ),
+              },
+            };
           });
         }
       };
@@ -567,6 +591,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Define selectContact before it's used in useEffect
   const selectContact = useCallback(async (contactId: string) => {
     setSelectedContactId(contactId);
+    selectedContactIdRef.current = contactId;
     setSelectedGroupId(null);
 
     if (!contactId) return;
@@ -668,6 +693,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           hasMore: false,
         },
       }));
+
+      // Notify the contact that we've read their messages (triggers eye icon on their side)
+      if (wsRef.current?.isConnected()) {
+        wsRef.current.send('mark_read', { contact_id: contactId });
+      }
     } catch (error) {
       console.error('Failed to load conversation:', error);
 
@@ -922,6 +952,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // Mark as synced in local storage
       await localStore.markAsSynced(messageId);
+
+      // Immediately update UI status to 'sent' — server confirmed receipt
+      setConversations(prev => ({
+        ...prev,
+        [recipientId]: {
+          ...prev[recipientId],
+          messages: prev[recipientId].messages.map(m =>
+            m.id === messageId ? { ...m, status: 'sent' as MessageStatus } : m
+          ),
+        },
+      }));
 
     } catch (error) {
       console.error('Failed to send message:', error);

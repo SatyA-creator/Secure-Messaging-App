@@ -24,9 +24,11 @@ export interface Message {
   status: MessageStatus;
   createdAt: Date;
   isEncrypted: boolean;
+  isRead?: boolean;
   hasMedia?: boolean;
   mediaAttachments?: MediaAttachment[];
   mediaUrls?: string[];  // Array of media file URLs
+  senderName?: string; // For group messages - display name of sender
 }
 
 export interface MediaAttachment {

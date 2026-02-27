@@ -437,6 +437,19 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = Qu
                                 }
                             )
 
+                    elif message_type == "mark_read":
+                        # Recipient opened the conversation — notify the original sender
+                        contact_id = payload.get("contact_id")
+                        if contact_id:
+                            await manager.send_personal_message(
+                                contact_id,
+                                {
+                                    "type": "message_read",
+                                    "reader_id": user_id,
+                                    "timestamp": datetime.now().isoformat()
+                                }
+                            )
+
                     elif message_type == "contact_added":
                         inviter_id = payload.get("inviter_id")
                         contact_id = payload.get("contact_id")

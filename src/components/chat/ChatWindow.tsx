@@ -6,7 +6,7 @@ import { MessageInput } from './MessageInput';
 import { Lock, Shield, MoreVertical, Phone, Video, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import GroupChat from '../GroupChat';
+import GroupChat from './GroupChat';
 import api from '@/config/api';
 import { ExportConversation } from './ExportConversation';
 
@@ -114,24 +114,6 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation?.messages]);
 
-  // Send read confirmations for unread messages
-  useEffect(() => {
-    if (selectedContactId && conversation?.messages && user && wsRef.current) {
-      const unreadMessages = conversation.messages.filter(
-        msg => msg.senderId === selectedContactId && msg.status !== 'read'
-      );
-      
-      unreadMessages.forEach(msg => {
-        if (wsRef.current?.isConnected()) {
-          wsRef.current.send('read_confirmation', {
-            message_id: msg.id,
-            sender_id: msg.senderId
-          });
-        }
-      });
-    }
-  }, [selectedContactId, conversation?.messages, user]);
-
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (selectedContactId) {
       await sendMessage(selectedContactId, content, files);
@@ -150,7 +132,7 @@ export function ChatWindow({ onBack }: ChatWindowProps) {
         </div>
       );
     }
-    return <GroupChat group={selectedGroup} currentUser={user} />;
+    return <GroupChat group={selectedGroup} currentUser={user} onBack={handleBackClick} />;
   }
 
   if (!selectedContact) {
